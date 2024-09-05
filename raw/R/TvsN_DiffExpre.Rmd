@@ -1,0 +1,188 @@
+---
+title: "TvsN defferential expression"
+output: html_notebook
+---
+
+
+```{r}
+library("DESeq2")
+```
+
+
+```{r}
+# Load in read count data
+# The data matrix is already sorted in Python
+# The row name is ensemble ID, and the column is the sample ID, the first 45 samples have high clonality and the last 45 have low clonality
+
+tvn2RC = read.delim("/Users/huiyu818/Project/TCR_Summary/TvsN/TvsN_RC.txt", row.names = 1, sep = "\t", check.names = FALSE, header = TRUE)
+
+# Load in the group data
+# The row name is the sample ID, which has the same order as the column name of the read count data
+
+tvn2col = read.delim("/Users/huiyu818/Project/TCR_Summary/TvsN/groupData.txt", row.names = 1, sep = "\t", header = TRUE)
+
+tvn2col$Group <- factor(tvn2col$Group, levels = c("Normal","Tumor"))
+```
+
+
+```{r}
+# Construct DESeqDataSet object
+tvn_dds <- DESeqDataSetFromMatrix(countData = tvn2RC, colData = tvn2col, design = ~ Group)
+
+# Normalize the expression data
+tvn_vsd <- vst(tvn_dds, fitType = "mean")
+
+# Calculate the expression difference
+tvn_dds1 <- DESeq(tvn_dds, fitType = "mean", parallel = TRUE, minReplicatesForReplace = 7)
+
+```
+
+```{r}
+# The high clonality ("High") is put before the "Low" in the code
+
+# This means the genes of High clonality sample are up or down regulated compare to the low clonality samples
+
+tvn_res <- results(tvn_dds1, contrast = c('Group', 'Tumor','Normal'))
+tvn_res
+```
+
+```{r}
+tvn_res1 <- data.frame(tvn_res, stringsAsFactors = FALSE, check.names = FALSE)
+
+write.table(tvn_res1, file = '/Users/huiyu818/Project/TCR_Summary/TvsN/TvsN_fullResult.txt', col.names = NA, sep = '\t', quote = FALSE)
+```
+
+```{r}
+# Different expression gene selection
+
+# Sort the table according to the padj(adjusted p-value) ascending.
+# For genes with same padj, order according to the log2FC descending.
+# The , at the end of the coding is essensial
+tvn_res1 <- tvn_res1[order(tvn_res1$padj, tvn_res1$log2FoldChange, decreasing = c(FALSE, TRUE)),]
+
+# The significantly up-regulated genes are labeled with 'UP'
+tvn_res1[which(tvn_res1$log2FoldChange >= 1 & tvn_res1$padj < 0.01), 'sign'] <- 'UP'
+
+# The significantly down-regulated genes are labeled with 'DOWN'
+tvn_res1[which(tvn_res1$log2FoldChange <= -1 & tvn_res1$padj < 0.01), 'sign'] <- 'DOWN'
+
+# The rest genes are labeled 'none'
+tvn_res1[which(abs(tvn_res1$log2FoldChange) <= 1 | tvn_res1$padj >= 0.01), 'sign'] <- 'none'
+
+```
+
+```{r}
+# Up regulated genes
+tvn_res1_up <- subset(tvn_res1, sign == 'UP')
+
+# Down regulate genes
+tvn_res1_down <- subset(tvn_res1, sign == 'DOWN')
+
+# Write into files
+write.table(tvn_res1_up, file = '/Users/huiyu818/Project/TCR_Summary/TvsN/TvsN_up.txt', sep = '\t', col.names = NA, quote = FALSE)
+write.table(tvn_res1_down, file = '/Users/huiyu818/Project/TCR_Summary/TvsN/TvsN_down.txt', sep = '\t', col.names = NA, quote = FALSE)
+```
+
+```{r}
+library('biomaRt')
+```
+
+```{r}
+mart <- useDataset("hsapiens_gene_ensembl", useMart("ensembl"))
+
+genes <- rownames(tvn2RC)
+
+# The hgnc_symbol is downloaded and stored in G_list
+
+G_list <- getBM(filters="ensembl_gene_id", attributes=c("ensembl_gene_id", "hgnc_symbol", "description"), values=genes, mart=mart)
+```
+
+```{r}
+tvn_res1_hgnc <- merge(tvn_res1, G_list, by.x="row.names", by.y = "ensembl_gene_id")
+```
+
+```{r}
+# Up regulated genes
+tvn_res1_up_hgnc <- subset(tvn_res1_hgnc, sign == 'UP')
+
+# Down regulate genes
+tvn_res1_down_hgnc <- subset(tvn_res1_hgnc, sign == 'DOWN')
+
+# Write into files
+write.table(tvn_res1_up_hgnc, file = '/Users/huiyu818/Project/TCR_Summary/TvsN/TvsN_up_hgnc.txt', sep = '\t', col.names = NA, quote = FALSE)
+write.table(tvn_res1_down_hgnc, file = '/Users/huiyu818/Project/TCR_Summary/TvsN/TvsN_down_hgnc.txt', sep = '\t', col.names = NA, quote = FALSE)
+write.table(tvn_res1_hgnc, file = '/Users/huiyu818/Project/TCR_Summary/TvsN/TvsN_hgnc.txt', sep = '\t', col.names = NA, quote = FALSE)
+```
+
+```{r}
+# Plot the result
+tvn_Voc <- ggplot(data = tvn_res1, aes(x = log2FoldChange, y = -log10(padj), color = sign)) + 
+  geom_point(size = 1) +  #Create scatter plot
+  scale_color_manual(values = c('red', 'gray', 'green'), limits = c('UP', 'none', 'DOWN')) +  #Set the color
+  labs(x = 'log2 Fold Change', y = '-log10 adjust p-value', title = 'Tumor vs Normal', color = '') +  #Set the labels
+  theme(plot.title = element_text(hjust = 0.5, size = 14), panel.grid = element_blank(), #Change the them and grid lines
+  panel.background = element_rect(color = 'black', fill = 'transparent'), 
+  legend.key = element_rect(fill = 'transparent')) +
+  geom_vline(xintercept = c(-1, 1), lty = 3, color = 'black') +  #Add threshold line
+  geom_hline(yintercept = 2, lty = 3, color = 'black') +
+  xlim(-12, 12) + ylim(0, 35)  #Set the curve boundary
+
+tvn_Voc
+```
+
+```{r}
+library(clusterProfiler)
+
+library(GOplot)
+library(DOSE)
+
+library(topGO)
+library(circlize)
+```
+
+```{r}
+# prepare the database
+GO_database <- 'org.Hs.eg.db'
+
+KEGG_database <- 'hsa'
+```
+
+
+```{r}
+# Construct new data table for the GO analysis
+tvn_res2 <- tvn_res1_hgnc[c("hgnc_symbol", "baseMean", "log2FoldChange", "lfcSE","stat","pvalue", "padj","sign")]
+
+tvn_res2 <- tvn_res2[!(tvn_res2$sign == "none"), ]
+
+tvn_geneList <- tvn_res2$hgnc_symbol
+
+tvn_genes_EID <- bitr(tvn_geneList, fromType = 'SYMBOL', toType = 'ENTREZID', OrgDb = GO_database)
+
+```
+
+```{r}
+# Construct a GO object
+GO <- enrichGO(gene = tvn_genes_EID$ENTREZID,
+               OrgDb = GO_database,
+               keyType = "ENTREZID",
+               ont = 'ALL',
+               pvalueCutoff = 0.01,
+               qvalueCutoff = 0.05,
+               readable = TRUE)
+
+
+```
+
+```{r}
+# GO for upregulated gene
+tvn_res2_up <- tvn_res2[tvn_res2$sign == "UP", ]
+
+tvn_geneList_up <- tvn_res2_up$hgnc_symbol
+
+tvn_genes_EID_up <- bitr(tvn_geneList_up, fromType = 'SYMBOL', toType = 'ENTREZID', OrgDb = GO_database)
+
+
+
+```
+
+

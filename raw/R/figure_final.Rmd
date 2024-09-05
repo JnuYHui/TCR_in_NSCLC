@@ -1,0 +1,2512 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(readxl)
+library(clusterProfiler)
+
+library(GOplot)
+library(DOSE)
+
+library(topGO)
+library(circlize)
+library("pheatmap")
+
+library("ggsci")
+library("ggplot2")
+library("gridExtra")
+
+library("survival")
+library("survminer")
+
+library(ggpubr)
+library(rstpm2)
+library(corrplot)
+library(Hmisc)
+
+library(cowplot)
+library(reshape)
+
+library(ggbreak)
+library(ggrepel)
+```
+
+
+```{r}
+GiniClin <- read_excel("~/Project/TCR_Summary/Writing/SumSup.xlsx", sheet = "Gini_Clinic")
+
+GiniClin <- as.data.frame(GiniClin, row.names = GiniClin$ID)
+
+```
+
+# Figure 1
+
+```{r}
+f1a <- ggplot(GiniClin, aes(x=GiniIndex)) +
+  geom_histogram(colour = "black", fill="#4dbbd5ff", bins = 50) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 20)) +
+  labs(title = "Gini_distribution", y = "Patient count") +
+  scale_x_continuous(expand = c(0,0), limits = c(0, 0.8)) + scale_y_continuous(expand = c(0,0), limits = c(0,25))
+
+f1a
+```
+
+```{r}
+qqnorm(GiniClin_tumor$GiniIndex, ylab = 'GiniIndex')
+qqline(GiniClin_tumor$GiniIndex) # 增加趋势直线，利于比较
+```
+
+```{r}
+# H0 is that the data fit normal distribution
+shapiro.test(GiniClin_tumor$GiniIndex)
+```
+
+
+
+```{r}
+GiniClin_AcSq <- GiniClin[GiniClin$histology_Hans_B_WHO_2015 %in% c("AC","SqCC"), ]
+
+f1a_2 <- ggplot(GiniClin_AcSq, aes(x=GiniIndex, fill = histology_Hans_B_WHO_2015)) +
+  geom_histogram(color = "black", position = "identity", bins = 50, size = 0.3) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 20, colour = "black"), legend.position = c(0.8,0.8)) +
+  labs(title = "Gini_distribution", fill = "Histology") +
+  scale_fill_manual(values = alpha(c("#F8766D", "#00BFC4"), 0.75)) +
+  scale_x_continuous(expand = c(0,0), limits = c(0,0.85)) + scale_y_continuous(expand = c(0,0), limits = c(0,17), breaks = c(seq(0,15,5)))
+
+f1a_2
+```
+
+
+```{r}
+GiniClin_tumor <- read_excel("~/Project/TCR_Summary/Writing/SumSup.xlsx", sheet = "Gini_Clinic_tumor")
+
+GiniClin_tumor <- as.data.frame(GiniClin_tumor, row.names = GiniClin_tumor$ID)
+```
+
+
+
+
+## Box plot
+```{r}
+# Age group
+GiniClin_tumor[GiniClin_tumor$age >= 70 ,"ageGroup"] <- "Above 70"
+GiniClin_tumor[GiniClin_tumor$age < 70 ,"ageGroup"] <- "Under 70"
+
+# f1b_1 <- ggplot(GiniClin_tumor, aes(x = ageGroup, y = GiniIndex, fill=ageGroup)) +
+
+f1b_1 <- ggplot(GiniClin_tumor, aes(x = ageGroup, y = GiniIndex, fill=ageGroup)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black", notch = FALSE) +
+  theme_classic() +
+  #coord_flip() +
+  #scale_color_npg() +
+  labs(title = "Age", x = "Age") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+
+f1b_1
+```
+
+```{r}
+GiniClin_tumor[GiniClin_tumor$`stadium numbers edt 8 (PMI)` >= 5 ,"stageGroup"] <- "High stage"
+GiniClin_tumor[GiniClin_tumor$`stadium numbers edt 8 (PMI)` < 5 ,"stageGroup"] <- "Low stage"
+
+f1b_2 <- ggplot(GiniClin_tumor, aes(x = stageGroup, y = GiniIndex, fill=stageGroup)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  # scale_color_npg() +
+  labs(title = "Stage", x = "Stage") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+
+f1b_2
+```
+
+
+```{r}
+# histology
+f1b_3 <- ggplot(GiniClin_tumor, aes(x = histology_Hans_B_WHO_2015, y = GiniIndex, fill=histology_Hans_B_WHO_2015)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  #coord_flip() +
+  scale_fill_manual(values = c("#F8766D", "#999999", "#00BF7D","#00B0F6","#A3A500", "#00BFC4")) +
+  labs(title = "Histology", x = "Histology") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+
+f1b_3
+```
+
+```{r}
+GiniClin_tumor[GiniClin_tumor$gender == "M" ,"gender"] <- "Male"
+GiniClin_tumor[GiniClin_tumor$gender == "F" ,"gender"] <- "Female"
+
+f1b_4 <- ggplot(GiniClin_tumor, aes(x = gender, y = GiniIndex, fill=gender)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  # scale_fill_npg() +
+  labs(title = "Gender", x = "Sex") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+
+f1b_4
+
+```
+
+```{r}
+# Smoke
+GiniClin_tumor[GiniClin_tumor$smoke == "N" ,"smoke"] <- "Never smoke"
+GiniClin_tumor[GiniClin_tumor$smoke == "C" ,"smoke"] <- "Current smoke"
+GiniClin_tumor[GiniClin_tumor$smoke == "F" ,"smoke"] <- "Former smoke"
+
+f1b_5 <- ggplot(GiniClin_tumor, aes(x = smoke, y = GiniIndex, fill=smoke)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  scale_fill_manual(values = c("#F8766D", "#00BFC4", "#999999")) +
+  labs(title = "Smoke", x = "Smoke") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+
+f1b_5
+```
+
+```{r}
+# Smoke
+GiniClin_tumor[GiniClin_tumor$smoke == "Never smoke" ,"smoke_2"] <- "Non smoker"
+GiniClin_tumor[GiniClin_tumor$smoke == "Current smoke" | GiniClin_tumor$smoke == "Former smoke","smoke_2"] <- " Smoker"
+
+f1b_5_2 <- ggplot(GiniClin_tumor, aes(x = smoke_2, y = GiniIndex, fill=smoke_2)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  scale_fill_manual(values = c("#F8766D", "#00BFC4")) +
+  labs(title = "Smoke", x = "Smoke") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = FALSE)
+
+f1b_5_2
+```
+
+```{r}
+# WHO PS
+GiniClin_tumor[GiniClin_tumor$WHO_PS == 0 ,"WHO_PS_group"] <- 0
+GiniClin_tumor[GiniClin_tumor$WHO_PS > 0 ,"WHO_PS_group"] <- "> 0"
+
+f1b_6 <- ggplot(GiniClin_tumor, aes(x = WHO_PS_group, y = GiniIndex, fill=WHO_PS_group)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  scale_fill_manual(values = c("#F8766D", "#00BFC4")) +
+  labs(title = "WHO performance status", x = "WHO performance rank") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = FALSE)
+
+f1b_6
+```
+
+### AC/SqCC
+```{r}
+ggplot(GiniClin_tumor[GiniClin_tumor$histology_Hans_B_WHO_2015 == "AC", ], aes(x = stageGroup, y = GiniIndex, fill=stageGroup)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  # scale_color_npg() +
+  labs(title = "Stage", x = "Stage") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+```
+
+```{r}
+ggplot(GiniClin_tumor[GiniClin_tumor$histology_Hans_B_WHO_2015 == "SqCC", ], aes(x = stageGroup, y = GiniIndex, fill=stageGroup)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  # scale_color_npg() +
+  labs(title = "Stage", x = "Stage") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+```
+
+```{r}
+ggplot(GiniClin_tumor[GiniClin_tumor$histology_Hans_B_WHO_2015 == "AC", ], aes(x = WHO_PS_group, y = GiniIndex, fill=WHO_PS_group)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  scale_fill_manual(values = c("#F8766D", "#00BFC4")) +
+  labs(title = "WHO performance status", x = "WHO performance rank") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = FALSE)
+```
+
+```{r}
+ggplot(GiniClin_tumor[GiniClin_tumor$histology_Hans_B_WHO_2015 == "SqCC", ], aes(x = WHO_PS_group, y = GiniIndex, fill=WHO_PS_group)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  scale_fill_manual(values = c("#F8766D", "#00BFC4")) +
+  labs(title = "WHO performance status", x = "WHO performance rank") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = FALSE)
+```
+
+
+
+
+# Figure 2
+```{r}
+library("survival")
+library("survminer")
+```
+
+## Figure2A: KM plot
+
+### All patient
+
+
+```{r}
+GiniClin_tumor[GiniClin_tumor$GiniIndex >= 0.25431, "giniGroup"] <- "Above median"
+GiniClin_tumor[GiniClin_tumor$GiniIndex < 0.25431, "giniGroup"] <- "Under median"
+GiniClin_tumor$giniGroup = factor(GiniClin_tumor$giniGroup, levels = c("Above median", "Under median"))
+GiniClin_tumor['L481T', 'status_5_years_trunk_20190329'] = 1
+GiniClin_tumor2 <- GiniClin_tumor[!GiniClin_tumor$ID == 'L584T',]
+```
+
+```{r}
+# construct the object
+fig2test <- survfit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ giniGroup, data = GiniClin_tumor)
+
+print(fig2test)
+
+summary(fig2test)$table
+
+```
+
+```{r}
+fig2a_all <- ggsurvplot(fig2test,
+                        pval = TRUE,
+                        palette = c("#e64b35", "#4dbbd5"),
+                        break.time.by = 1,
+                        ggtheme = theme_classic(),
+                        legend.labs = c("Above median", "Under median"),
+                        risk.table = "abs_pct",
+                        risk.table.y.text = FALSE,
+                        xlab = "Time (years)",
+                        title = "giniSurv",
+                        xlim = c(0,5.2),
+                        axes.offset = FALSE,
+                        risk.table.fontsize = 2.5,
+                        legend = c(0.9,0.9),
+                        risk.table.title = "Number at risk by time: n (%)",
+                        font.main = c())
+
+
+fig2a_all
+```
+
+```{r}
+fig2a_continue.cox <- coxph(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ GiniIndex, data = GiniClin_tumor)
+fig2a_continue.cox
+```
+
+```{r}
+ggsurvplot(survfit(fig2a_continue.cox, data=GiniClin_tumor), color = "#2E9FDF",ggtheme = theme_minimal())
+```
+
+
+#### Time split surv
+```{r}
+GiniClin_tumor[GiniClin_tumor$giniGroup == "Above median", "giniGroup_nr"] <- 1
+GiniClin_tumor[GiniClin_tumor$giniGroup == "Under median", "giniGroup_nr"] <- 0
+
+fig2_timespl <- survSplit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329 == 1) ~ ., data=GiniClin_tumor2, cut=c(2), episode = "tgroup")
+
+fig2_timespl.cox <- coxph(Surv(tstart, OS_years_5_years_trunk_20190329, event==1) ~ giniGroup_nr:strata(tgroup), data=fig2_timespl, ties="efron")
+summary(fig2_timespl.cox)
+
+```
+
+```{r}
+cox.zph(fig2_timespl.cox)
+```
+
+```{r}
+fig2_mod_tvc <- stpm2(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329 == 1) ~ giniGroup_nr, data = GiniClin_tumor, df=3, tvc=list(giniGroup_nr=1))
+
+plot(fig2_mod_tvc, newdata = data.frame(giniGroup_nr = 0), type = "hazard",  xlim=c(0.5,5), ylim=c(0,0.2), ylab = "Hazard", xlab = "Time", lwd = 2, ci = FALSE)
+plot(fig2_mod_tvc, newdata = data.frame(giniGroup_nr = 1), type = "hazard", line.col=2, ci=FALSE, lwd = 2, add=TRUE)
+```
+
+#### Calculate best cutoff
+```{r}
+fig2.cut <- surv_cutpoint(GiniClin_tumor,
+                          time = "OS_years_5_years_trunk_20190329",
+                          event = "status_5_years_trunk_20190329",
+                          variables = "GiniIndex")
+summary(fig2.cut)
+```
+```{r}
+plot(fig2.cut, "GiniIndex", palette = "npg")
+```
+```{r}
+fig2.cut.cat <- surv_categorize(fig2.cut)
+fig2.cut.fit <- survfit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ GiniIndex, data = fig2.cut.cat)
+
+ggsurvplot(fig2.cut.fit,
+           data = fig2.cut.cat,
+           risk.table = TRUE,
+           pval = T)
+```
+
+
+#### Calculate AC and SqCC
+
+```{r}
+# AC
+fig2.cut_AC <- surv_cutpoint(GiniClin_tumor_Ac,
+                             time = "OS_years_5_years_trunk_20190329",
+                             event = "status_5_years_trunk_20190329",
+                             variables = "GiniIndex")
+summary(fig2.cut_AC)
+```
+```{r}
+plot(fig2.cut_AC, "GiniIndex", palette = "npg")
+```
+```{r}
+fig2.cut_AC.cat <- surv_categorize(fig2.cut_AC)
+fig2.cut_AC.fit <- survfit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ GiniIndex, data = fig2.cut_AC.cat)
+
+ggsurvplot(fig2.cut_AC.fit,
+           data = fig2.cut.cat,
+           risk.table = TRUE,
+           pval = T)
+```
+
+
+#### KM without censoring
+```{r}
+fig2_NoCensor_test <- survfit(Surv(OS_years_20190329, status_out_20190329) ~ giniGroup, data = GiniClin_tumor)
+
+print(fig2_NoCensor_test)
+
+summary(fig2_NoCensor_test)$table
+```
+
+
+
+```{r}
+fig2_NoCensor <- ggsurvplot(fig2_NoCensor_test,
+                        pval = TRUE,
+                        palette = c("#e64b35", "#4dbbd5"),
+                        break.time.by = 2,
+                        ggtheme = theme_classic(),
+                        legend.labs = c("Above median", "Under median"),
+                        risk.table = "abs_pct",
+                        risk.table.y.text = FALSE,
+                        xlab = "Time (years)",
+                        title = "giniSurv_without_censoring",
+                        axes.offset = FALSE,
+                        risk.table.fontsize = 2.5,
+                        legend = c(0.9,0.9),
+                        risk.table.title = "Number at risk by time: n (%)",
+                        font.main = c())
+
+fig2_NoCensor
+```
+
+
+```{r}
+fig2_NoCensor.cut <- surv_cutpoint(GiniClin_tumor,
+                          time = "OS_years_20190329",
+                          event = "status_out_20190329",
+                          variables = "GiniIndex")
+summary(fig2_NoCensor.cut)
+```
+
+```{r}
+plot(fig2_NoCensor.cut, "GiniIndex", palette = "npg")
+```
+```{r}
+fig2_NoCensor.cut.cat <- surv_categorize(fig2_NoCensor.cut)
+fig2_NoCensor.cut.fit <- survfit(Surv(OS_years_20190329, status_out_20190329) ~ GiniIndex, data = fig2_NoCensor.cut.cat)
+
+ggsurvplot(fig2_NoCensor.cut.fit,
+           data = fig2_NoCensor.cut.cat,
+           risk.table = TRUE,
+           pval = T)
+```
+
+```{r}
+ggsurvplot(fig2_NoCensor.cut.fit,
+            pval = TRUE,
+            palette = c("#e64b35", "#4dbbd5"),
+            break.time.by = 2,
+            ggtheme = theme_classic(),
+            legend.labs = c("Above median", "Under median"),
+            risk.table = "abs_pct",
+            risk.table.y.text = FALSE,
+            xlab = "Time (years)",
+            title = "giniSurv_without_censoring",
+            axes.offset = FALSE,
+            risk.table.fontsize = 2.5,
+            legend = c(0.9,0.9),
+            risk.table.title = "Number at risk by time: n (%)",
+            font.main = c())
+```
+
+
+
+
+### AC patient
+
+```{r}
+GiniClin_tumor_Ac = GiniClin_tumor[GiniClin_tumor$histology_Hans_B_WHO_2015 == "AC", ]
+
+fig2ACtest <- survfit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ giniGroup, data = GiniClin_tumor_Ac)
+
+print(fig2ACtest)
+print("====")
+summary(fig2ACtest)$table
+```
+
+```{r}
+fig2a_AC <- ggsurvplot(fig2ACtest,
+                        pval = TRUE,
+                        palette = c("#e64b35", "#4dbbd5"),
+                        break.time.by = 1,
+                        ggtheme = theme_classic(),
+                        #legend.labs = c("Above median", "Under median"),
+                        risk.table = "abs_pct",
+                        risk.table.y.text = FALSE,
+                        xlab = "Time (years)",
+                        xlim = c(0,5.2),
+                        axes.offset = FALSE,
+                        risk.table.fontsize = 2.5,
+                        legend = c(0.9,0.9),
+                        risk.table.title = "Number at risk by time: n (%)",
+                        font.main = c())
+
+
+fig2a_AC
+```
+
+#### without sensoring
+```{r}
+fig2AC_NoCensor_test <- survfit(Surv(OS_years_20190329, status_out_20190329) ~ giniGroup, data = GiniClin_tumor[GiniClin_tumor$histology_Hans_B_WHO_2015 == "AC", ])
+
+print(fig2AC_NoCensor_test)
+
+summary(fig2AC_NoCensor_test)$table
+```
+
+```{r}
+ggsurvplot(fig2AC_NoCensor_test,
+          pval = TRUE,
+          palette = c("#e64b35", "#4dbbd5"),
+          break.time.by = 1,
+          ggtheme = theme_classic(),
+          legend.labs = c("Above median", "Under median"),
+          risk.table = "abs_pct",
+          risk.table.y.text = FALSE,
+          xlab = "Time (years)",
+          title = "giniSurv_without_censoring",
+          axes.offset = FALSE,
+          risk.table.fontsize = 2.5,
+          legend = c(0.9,0.9),
+          risk.table.title = "Number at risk by time: n (%)",
+          font.main = c())
+```
+
+
+### SqCC patient
+
+```{r}
+GiniClin_tumor_SqCC = GiniClin_tumor[GiniClin_tumor$histology_Hans_B_WHO_2015 == "SqCC", ]
+
+fig2SqCCtest_2 <- survfit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ giniGroup, data = GiniClin_tumor_SqCC)
+
+print(fig2SqCCtest)
+print("====")
+summary(fig2SqCCtest)$table
+```
+
+```{r}
+fig2a_SqCC_2 <- ggsurvplot(fig2SqCCtest_2,
+                        pval = TRUE,
+                        palette = c("#e64b35", "#4dbbd5"),
+                        break.time.by = 1,
+                        ggtheme = theme_classic(),
+                        legend.labs = c("Above median", "Under median"),
+                        risk.table = "abs_pct",
+                        risk.table.y.text = FALSE,
+                        xlab = "Time (years)",
+                        xlim = c(0,5.2),
+                        axes.offset = FALSE,
+                        risk.table.fontsize = 2.5,
+                        legend = c(0.9,0.9),
+                        risk.table.title = "Number at risk by time: n (%)",
+                        font.main = c())
+
+
+fig2a_SqCC_2
+```
+
+
+
+
+
+```{r}
+fig2_SqCC_timespl <- survSplit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329 == 1) ~ ., data=GiniClin_tumor_SqCC, cut=2, episode = "tgroup")
+
+fig2_SqCC_timespl.cox <- coxph(Surv(tstart, OS_years_5_years_trunk_20190329, event==1) ~ giniGroup:strata(tgroup), data=fig2_SqCC_timespl, ties="efron")
+summary(fig2_SqCC_timespl.cox)
+```
+
+#### without sensoring
+```{r}
+fig2SqCC_NoCensor_test <- survfit(Surv(OS_years_20190329, status_out_20190329) ~ giniGroup, data = GiniClin_tumor[GiniClin_tumor$histology_Hans_B_WHO_2015 == "SqCC", ])
+
+print(fig2SqCC_NoCensor_test)
+
+summary(fig2SqCC_NoCensor_test)$table
+```
+
+```{r}
+ggsurvplot(fig2SqCC_NoCensor_test,
+          pval = TRUE,
+          palette = c("#e64b35", "#4dbbd5"),
+          break.time.by = 1,
+          ggtheme = theme_classic(),
+          legend.labs = c("Above median", "Under median"),
+          risk.table = "abs_pct",
+          risk.table.y.text = FALSE,
+          xlab = "Time (years)",
+          title = "giniSurv_without_censoring",
+          axes.offset = FALSE,
+          risk.table.fontsize = 2.5,
+          legend = c(0.9,0.9),
+          risk.table.title = "Number at risk by time: n (%)",
+          font.main = c())
+```
+
+
+### Table: Cox regression
+
+Single variate
+```{r}
+GiniClin_tumor$giniGroup = factor(GiniClin_tumor$giniGroup, levels = c("Under median", "Above median"))
+
+fig2.cox <- coxph(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ giniGroup, data = GiniClin_tumor)
+
+print("===")
+fig2.cox
+print("===")
+print(summary(fig2.cox))
+print("===")
+```
+
+
+```{r}
+cox.zph(fig2.cox)
+```
+
+
+```{r}
+# Merge the histology group except AC and SqCC to others
+GiniClin_tumor[!(GiniClin_tumor$histology_Hans_B_WHO_2015 %in% c("AC","SqCC")), "Histology"] <- "Other"
+GiniClin_tumor[GiniClin_tumor$histology_Hans_B_WHO_2015 == "AC", "Histology"] <- "AC"
+GiniClin_tumor[GiniClin_tumor$histology_Hans_B_WHO_2015 == "SqCC", "Histology"] <- "SqCC"
+```
+
+```{r}
+# Merge the current smoke and former smoke in to one group
+GiniClin_tumor[GiniClin_tumor$smoke %in% c("Current smoke","Former smoke"), "smokeGroup"] <- "Current/Former"
+GiniClin_tumor[GiniClin_tumor$smoke == "Never smoke", "smokeGroup"] <- "Never"
+```
+
+
+```{r}
+# Construct levels of each parameter
+GiniClin_tumor$stageGroup = factor(GiniClin_tumor$stageGroup, levels = c("Low stage", "High stage"))
+GiniClin_tumor$gender = factor(GiniClin_tumor$gender, levels = c("Male", "Female"))
+GiniClin_tumor$Histology = factor(GiniClin_tumor$Histology, levels = c("AC", "SqCC", "Other"))
+GiniClin_tumor$ageGroup = factor(GiniClin_tumor$ageGroup, levels = c("Under 70", "Above 70"))
+GiniClin_tumor$smokeGroup = factor(GiniClin_tumor$smokeGroup, levels = c("Never","Current/Former"))
+```
+
+#### Multi-variate cox regression
+
+```{r}
+fig2.multicox <- coxph(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ giniGroup + ageGroup + gender + smokeGroup + Histology + stageGroup, data = GiniClin_tumor)
+
+summary(fig2.multicox)
+```
+
+
+### Without adjuvent treatment
+```{r}
+# Subset the group without adjuvent treatment
+GiniClin_noTreat = subset(GiniClin_tumor, Annette_adjuvant == 0)
+
+GiniClin_noTreat = as.data.frame(GiniClin_noTreat)
+
+GiniClin_noTreat$giniGroup = factor(GiniClin_noTreat$giniGroup, levels = c("Above median", "Under median"))
+
+# construct the object
+fig8test <- survfit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ giniGroup, data = GiniClin_noTreat)
+
+print(fig8test)
+
+summary(fig8test)$table
+```
+
+
+```{r}
+fig8a_all <- ggsurvplot(fig8test,
+                        pval = TRUE,
+                        palette = c("#e64b35", "#4dbbd5"),
+                        break.time.by = 1,
+                        ggtheme = theme_classic(),
+                        #legend.labs = c("Above median", "Under median"),
+                        risk.table = "abs_pct",
+                        risk.table.y.text = FALSE,
+                        xlab = "Time (years)",
+                        title = "giniSurv_no_treatment",
+                        xlim = c(0,5.2),
+                        axes.offset = FALSE,
+                        risk.table.fontsize = 2.5,
+                        legend = c(0.9,0.9),
+                        risk.table.title = "Number at risk by time: n (%)",
+                        font.main = c())
+
+
+fig8a_all
+```
+
+```{r}
+# Subset the group with adjuvent treatment
+GiniClin_Treat = subset(GiniClin_tumor, Annette_adjuvant == 1)
+
+GiniClin_Treat = as.data.frame(GiniClin_Treat)
+
+GiniClin_Treat$giniGroup = factor(GiniClin_Treat$giniGroup, levels = c("Above median", "Under median"))
+
+# construct the object
+fig8test_2 <- survfit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ giniGroup, data = GiniClin_Treat)
+
+print(fig8test_2)
+
+summary(fig8test_2)$table
+```
+
+
+```{r}
+fig8b_all_2 <- ggsurvplot(fig8test_2,
+                        pval = TRUE,
+                        palette = c("#e64b35", "#4dbbd5"),
+                        break.time.by = 1,
+                        ggtheme = theme_classic(),
+                        #legend.labs = c("Above median", "Under median"),
+                        risk.table = "abs_pct",
+                        risk.table.y.text = FALSE,
+                        xlab = "Time (years)",
+                        title = "giniSurv_treatment",
+                        xlim = c(0,5.2),
+                        axes.offset = FALSE,
+                        risk.table.fontsize = 2.5,
+                        legend = c(0.9,0.9),
+                        risk.table.title = "Number at risk by time: n (%)",
+                        font.main = c())
+
+
+fig8b_all_2
+```
+# Figure mutation burden
+
+## Mutation burden
+
+```{r}
+mutClin <- read_excel("~/Project/TCR_Summary/Writing/SumSup.xlsx", sheet = "MutationBurdern_all_tumor")
+
+mutClin <- as.data.frame(mutClin, row.names = mutClin$ID)
+
+mutClin$AB_GiniIndex <- as.numeric(mutClin$AB_GiniIndex)
+mutClin$Mutation_load_allmutations <- as.numeric(mutClin$Mutation_load_allmutations)
+mutClin <- mutClin[intersect(rownames(mutClin), rownames(GiniClin_tumor)),]
+```
+
+```{r}
+fig4a <- ggscatter(mutClin[,c("AB_GiniIndex","Mutation_load_allmutations")], x = "AB_GiniIndex", y = "Mutation_load_allmutations",
+                   add="reg.line", add.params = list(color = "#00bfc4"),
+                   conf.int = FALSE,
+                   cor.coef = TRUE,
+                   cor.coeff.args = list(method = "spearman", label.x.npc = 0.15, label.y.npc = 0.85),
+                   ggtheme = theme_classic(),
+                   #add = "reg.line", add.params = c(color = '#00bfc4'),
+                   title = "Mutation burden", xlab = "Gini Index", ylab = "Mutation load of all mutations",
+                   font.tickslab = c(size=15, color = "black"), font.main = 20,font.y = 15, font.x = 15) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 130), breaks = c(seq(0,120,30))) +
+  scale_x_continuous(expand = c(0,0), limits = c(0, 0.75), breaks = c(seq(0,0.6,0.2)))
+
+fig4a
+```
+
+## Mutation
+
+```{r}
+mutGini <- read_excel("~/Project/TCR_Summary/Writing/SumSup.xlsx", sheet = "mutation_tumor")
+
+mutGini <- as.data.frame(mutGini, row.names = mutGini$ID)
+mutGini$ID <- NULL
+
+mutGini <- mutGini[intersect(rownames(mutGini), rownames(GiniClin_tumor)),]
+mutGini$CCND1 <- NULL
+
+mutTest <- list()
+for (mutGene in colnames(mutGini[,(3:83)])){
+  WT_buff <- mutGini[mutGini[,mutGene] == "WT","GiniIndex"]
+  Mut_buff <- mutGini[mutGini[,mutGene] == "Mutated","GiniIndex"]
+  mutRes <- wilcox.test(WT_buff,Mut_buff)
+  mutTest <- c(mutTest,c(mutGene,mutRes$statistic,mutRes$p.value))
+}
+
+mutTest.matrix <- matrix(mutTest, ncol = 3, byrow = TRUE)
+colnames(mutTest.matrix) <- c("Mutation", "wil.cox", "p_value")
+mutTest.matrix <- as.data.frame(mutTest.matrix)
+mutTest.matrix[,"FDR"] <- p.adjust(mutTest.matrix$p_value, method = "fdr")
+
+```
+
+### EGFR
+```{r}
+f4c.egfr <- ggplot(mutGini, aes(x = EGFR, y = GiniIndex, fill = EGFR)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2,color ="black") +
+  theme_classic() +
+  # coord_flip() +
+  scale_fill_manual(values = c("#FFE5D4", "#E6EBE0")) +
+  labs(title = "EGFR", x = NULL) +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = FALSE)
+f4c.egfr
+```
+
+### APC
+```{r}
+f4c.apc <- ggplot(mutGini, aes(x = APC, y = GiniIndex, fill=APC)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  scale_fill_manual(values = c("#FFE5D4", "#E6EBE0")) +
+  labs(title = "APC", x = NULL) +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = FALSE)
+f4c.apc
+```
+
+### TP53
+```{r}
+f4c.tp53 <- ggplot(mutGini, aes(x = TP53, y = GiniIndex, fill=TP53)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  scale_fill_manual(values = c("#FFE5D4", "#E6EBE0")) +
+  labs(title = "TP53", x = NULL) +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = FALSE)
+f4c.tp53
+```
+### ARID1A
+```{r}
+f4c.arid1a <- ggplot(mutGini, aes(x = ARID1A, y = GiniIndex, fill=ARID1A)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  scale_fill_manual(values = c("#FFE5D4", "#E6EBE0")) +
+  labs(title = "ARID1A", x = NULL) +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = FALSE)
+f4c.arid1a
+```
+
+### EPHB6
+```{r}
+f4c.ephb6 <- ggplot(mutGini, aes(x = EPHB6, y = GiniIndex, fill=EPHB6)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  scale_fill_manual(values = c("#FFE5D4", "#E6EBE0")) +
+  labs(title = "EPHB6", x = NULL) +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = FALSE)
+f4c.ephb6
+```
+
+### CSMD3
+```{r}
+f4c.csmd3 <- ggplot(mutGini, aes(x = CSMD3, y = GiniIndex, fill=CSMD3)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+  theme_classic() +
+  # coord_flip() +
+  scale_fill_manual(values = c("#FFE5D4", "#E6EBE0")) +
+  labs(title = "CSMD3", x = NULL) +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20, hjust = 0.5)) +
+  #, panel.border = element_rect(color = "black", size = 1, fill = NA)
+  stat_compare_means(paired = FALSE)
+f4c.csmd3
+```
+
+### Combine
+```{r}
+ggarrange(f4c.egfr, f4c.apc, f4c.tp53, f4c.arid1a, f4c.ephb6, f4c.csmd3, ncol = 2, nrow = 3, align = "hv")
+```
+
+
+
+# Figure IHC Heatmap
+
+## prepare table
+```{r}
+mut_t_anno <- read_excel("~/Project/TCR_Summary/Writing/SumSup.xlsx", sheet = "mutation_tumor_anno")
+
+mut_t_anno <- as.data.frame(mut_t_anno, row.names = mut_t_anno$ID)
+
+mut_t_anno$ID <- NULL
+
+ihcAnno <- merge(AB_Gini_anno, mut_t_anno, by = "row.names", all =TRUE)
+ihcAnno <- as.data.frame(ihcAnno, row.names = ihcAnno$Row.names)
+ihcAnno$Row.names <- NULL
+ihcAnno <- merge(ihcAnno, mutGini[,c("APC","ARID1A","EPHB6")],by = "row.names", all=FALSE)
+
+ihcAnno <- merge(ihcAnno, GiniClin[,c("histology_Hans_B_WHO_2015", "gender", "smoke", "status_5_years_trunk_20190329")], by = "row.names",all =TRUE)
+
+ihcAnno <- rename(ihcAnno, c("histology_Hans_B_WHO_2015"="histology", "status_5_years_trunk_20190329"="surv5years"))
+
+ihcAnno <- as.data.frame(ihcAnno, row.names = ihcAnno$Row.names)
+ihcAnno$Row.names <- NULL
+
+ihcAnno <- ihcAnno[,c(1:20, 25:27, 21:24)]
+
+ihcHeatT_tumor_norm <- as.data.frame(ihcHeatT_tumor_norm, row.names = ihcHeatT_tumor_norm$ID)
+ihcHeatT_tumor_norm$ID <- NULL
+ihcHeatT_tumor_norm <- as.data.frame(ihcHeatT_tumor_norm)
+
+ihcHeatT_tumor_norm <- rename(ihcHeatT_tumor_norm, c("Gini Index" = "Gini.Index"))
+
+ihcAnno[!is.na(ihcAnno$smoke) & ihcAnno$smoke == "N", "smoke"] <- "Never"
+ihcAnno[!is.na(ihcAnno$smoke) & ihcAnno$smoke == "F", "smoke"] <- "Former"
+ihcAnno[!is.na(ihcAnno$smoke) & ihcAnno$smoke == "C", "smoke"] <- "Current"
+
+ihcAnno[!is.na(ihcAnno$gender) & ihcAnno$gender == "F", "gender"] <- "Female"
+ihcAnno[!is.na(ihcAnno$gender) & ihcAnno$gender == "M", "gender"] <- "Male"
+
+ihcAnno[!is.na(ihcAnno$surv5years) & ihcAnno$surv5years == 1, "surv5years"] <- "Dead"
+ihcAnno[!is.na(ihcAnno$surv5years) & ihcAnno$surv5years == 0, "surv5years"] <- "Alive"
+
+ihcHeatT_tumor_norm2 <- ihcHeatT_tumor_norm[!rownames(ihcHeatT_tumor_norm) %in% c("L483T", "L731T"), ]
+
+ihcHeatT_tumor_norm3 <- ihcHeatT_tumor_norm2[,grep("CD44", colnames(ihcHeatT_tumor_norm2), invert = TRUE)]
+
+```
+
+```{r}
+ihcAnno_color = list(
+  "Gini index" = colorRampPalette(brewer.pal(n = 9, name = "Reds"))(100),
+  "KRAS" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "EGFR" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "PIK3CA" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "FGFR2"= c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "PDGFRA"= c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "ROS1"= c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "NF1" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "STK11" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "TP53" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "KEAP1" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "NFE2L2" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "MUC16" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "KMT2C" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "KMT2D" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "SMARCA4" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "CDKN2A" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "CREBBP" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "CSMD3" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "LRP1B" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "APC" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "ARID1A" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "EPHB6" = c(Mutated = "#D45F51", WT = "#B7D2E8"),
+  "histology" = c(AC = "#D55740", SqCC = "#4DBCD6", AdSq = "#479E88", LCC = "#415384", LCNEC = "#F49B7F", SC = "#F8BED6"),
+  "gender" = c(Male = "#B9E3DF", Female = "#EFC0D5"),
+  "smoke" = c(Current = "#D45F51", Former = "#E68840", Never = "#BCD9B2"),
+  "surv5years" = c(Dead = "#D45F51", Alive = "#B7D2E8")
+)
+```
+
+```{r}
+fig5b <- pheatmap(t(ihcHeatT_tumor_norm2), clustering_method = "ward.D2",
+                  clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+                  cutree_cols = 3,
+                  #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+                  annotation_col = ihcAnno,
+                  annotation_colors = ihcAnno_color,
+                  fontsize = 5,
+                  show_colnames = F
+                  )
+fig5b
+```
+
+```{r}
+fig5b.cluster <- fig5b$tree_col
+
+fig5b.cluster.plot <- plot(fig5b.cluster, hang = -1, cex=0.6, axes=FALSE, ann=FALSE)
+
+fig5b.cut <- cutree(fig5b.cluster, 3)
+
+fig5b.cut_1 <- names(fig5b.cut)[fig5b.cut == 1]
+fig5b.cut_2 <- names(fig5b.cut)[fig5b.cut == 2]
+fig5b.cut_3 <- names(fig5b.cut)[fig5b.cut == 3]
+
+fig5b.cut_gini <- merge(AB_Gini_anno, fig5b.cut, by = "row.names", all.y = TRUE)
+
+fig5b.cut_gini <- as.data.frame(fig5b.cut_gini, row.names = fig5b.cut_gini$Row.names)
+
+fig5b.cut_gini$Row.names <- NULL
+
+fig5b.cut_gini <- rename(fig5b.cut_gini, c("y"="Cluster"))
+```
+
+```{r}
+fig5b.cut_gini[fig5b.cut_gini$Cluster == 2, "Class"] <- "Immune hot"
+fig5b.cut_gini[fig5b.cut_gini$Cluster == 3, "Class"] <- "Median"
+fig5b.cut_gini[fig5b.cut_gini$Cluster == 1, "Class"] <- "Immune cold"
+fig5b.cut_gini$Class = factor(fig5b.cut_gini$Class, levels = c("Immune hot", "Median", "Immune cold"))
+```
+
+
+```{r}
+fig5b.cut_gini <- as.data.frame(fig5b.cut_gini)
+fig5b.cut_gini2 <- rename(fig5b.cut_gini, c("Gini index"="GiniIndex"))
+compare_means(GiniIndex ~ Class, data = fig5b.cut_gini2)
+```
+
+
+```{r}
+fig5b.cut_km <- merge(fig5b.cut_gini, GiniClin_tumor[, c("OS_years_5_years_trunk_20190329", "status_5_years_trunk_20190329")], by = "row.names")
+fig5b.cut_km <- as.data.frame(fig5b.cut_km, row.names = fig5b.cut_km$Row.names)
+fig5b.cut_km$Row.names <- NULL
+
+fig5b.test <- survfit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ Class, data = fig5b.cut_km)
+
+summary(fig5b.test)$table
+```
+
+```{r}
+fig5b.KM <- ggsurvplot(fig5b.test,
+                        pval = TRUE,
+                        palette = c("#e64b35", "#4dbbd5", "#999999"),
+                        break.time.by = 1,
+                        ggtheme = theme_classic(),
+                        #legend.labs = c("Above median", "Under median"),
+                        risk.table = "abs_pct",
+                        risk.table.y.text = FALSE,
+                        xlab = "Time (years)",
+                        title = "giniSurv_Class",
+                        xlim = c(0,5.2),
+                        axes.offset = FALSE,
+                        risk.table.fontsize = 2.5,
+                        legend = c(0.9,0.9),
+                        risk.table.title = "Number at risk by time: n (%)",
+                        font.main = c())
+fig5b.KM
+```
+
+```{r}
+fig5c <- ggplot(fig5b.cut_gini, aes(x = Class, y = `Gini index`, fill=Class)) +
+    geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+    theme_classic() +
+    # coord_flip() +
+    scale_fill_manual(values = c("#e64b35", "#4dbbd5", "#999999")) +
+    labs(title = "Class", x = "Class") +
+    theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+    stat_compare_means(paired = NULL)
+fig5c
+```
+
+
+```{r}
+fig5b.cut_clin <- merge(fig5b.cut_km, GiniClin_tumor[,c("histology_Hans_B_WHO_2015", "gender", "smoke")], by = "row.names", all.x = TRUE)
+
+fig5b.cut_clin <- as.data.frame(fig5b.cut_clin, row.names = fig5b.cut_clin$Row.names)
+
+fig5b.cut_clin$Row.names <- NULL
+
+fig5b.cut_clin_AC <- fig5b.cut_clin[fig5b.cut_clin$histology_Hans_B_WHO_2015 == "AC", ]
+fig5b.cut_clin_SqCC <- fig5b.cut_clin[fig5b.cut_clin$histology_Hans_B_WHO_2015 == "SqCC", ]
+
+fig5b.cut_clin
+
+fig5b.cut_clin[fig5b.cut_clin$`Gini index` >= 0.25431, "giniGroup"] <- "Above median"
+fig5b.cut_clin[fig5b.cut_clin$`Gini index` < 0.25431, "giniGroup"] <- "Under median"
+fig5b.cut_clin$giniGroup = factor(fig5b.cut_clin$giniGroup, levels = c("Above median", "Under median"))
+```
+
+## cluster without gini index
+
+```{r}
+pheatmap(t(ihcHeatT_tumor_norm2[,(2:25)]), clustering_method = "ward.D2",
+                  clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+                  cutree_cols = 3,
+                  #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+                  annotation_col = ihcAnno,
+                  annotation_colors = ihcAnno_color,
+                  fontsize = 5,
+                  show_colnames = F
+                  )
+
+pheatmap(t(ihcHeatT_tumor_norm3[,grep("_S", colnames(ihcHeatT_tumor_norm3))]), clustering_method = "ward.D2",
+          clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+          cutree_cols = 3,
+          #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+          annotation_col = ihcAnno,
+          annotation_colors = ihcAnno_color,
+          fontsize = 5,
+          show_colnames = F
+)
+pheatmap(t(ihcHeatT_tumor_norm3[,grep("_S", colnames(ihcHeatT_tumor_norm3))]), clustering_method = "ward.D2",
+          clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+          cutree_cols = 3,
+          #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+          annotation_col = ihcAnno,
+          annotation_colors = ihcAnno_color,
+          fontsize = 5,
+          show_colnames = F
+)
+pheatmap(t(ihcHeatT_tumor_norm3[,grep("_T", colnames(ihcHeatT_tumor_norm3))]), clustering_method = "ward.D2",
+          clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+          cutree_cols = 2,
+          #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+          annotation_col = ihcAnno,
+          annotation_colors = ihcAnno_color,
+          fontsize = 5,
+          show_colnames = F
+)
+```
+
+```{r}
+fig5d_T <- pheatmap(t(ihcHeatT_tumor_norm3[,grep("_T", colnames(ihcHeatT_tumor_norm3))]), clustering_method = "ward.D2",
+          clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+          cutree_cols = 2,
+          #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+          annotation_col = ihcAnno,
+          annotation_colors = ihcAnno_color,
+          fontsize = 5,
+          show_colnames = F
+)
+fig5d_T
+```
+
+```{r}
+fig5d_T.cluster <- fig5d_T$tree_col
+
+fig5d_T.cluster.plot <- plot(fig5d_T.cluster, hang = -1, cex=0.6, axes=FALSE, ann=FALSE)
+
+fig5d_T.cut <- cutree(fig5d_T.cluster, 2)
+
+fig5d_T.cut_1 <- names(fig5d_T.cut)[fig5d_T.cut == 1]
+fig5d_T.cut_2 <- names(fig5d_T.cut)[fig5d_T.cut == 2]
+
+fig5d_T.cut_gini <- merge(AB_Gini_anno, fig5d_T.cut, by = "row.names", all.y = TRUE)
+
+fig5d_T.cut_gini <- as.data.frame(fig5d_T.cut_gini, row.names = fig5d_T.cut_gini$Row.names)
+
+fig5d_T.cut_gini$Row.names <- NULL
+
+fig5d_T.cut_gini <- rename(fig5d_T.cut_gini, c("Cluster"="y"))
+```
+
+```{r}
+fig5d_T.cut_gini[fig5d_T.cut_gini$Cluster == 1, "Class"] <- "Immune cold"
+fig5d_T.cut_gini[fig5d_T.cut_gini$Cluster == 2, "Class"] <- "Immune hot"
+fig5d_T.cut_gini$Class = factor(fig5d_T.cut_gini$Class, levels = c("Immune hot", "Immune cold"))
+```
+
+```{r}
+fig5d_T.cut_gini <- as.data.frame(fig5d_T.cut_gini)
+fig5d_T.cut_gini <- rename(fig5d_T.cut_gini, c("GiniIndex"="Gini index"))
+compare_means(GiniIndex ~ Class, data = fig5d_T.cut_gini)
+```
+
+```{r}
+fig5d_T.box <- ggplot(fig5d_T.cut_gini, aes(x = Class, y = GiniIndex, fill=Class)) +
+    geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+    theme_classic() +
+    # coord_flip() +
+    scale_fill_manual(values = c("#e64b35", "#4dbbd5")) +
+    labs(title = "Class", x = "Class") +
+    theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+    stat_compare_means(paired = NULL)
+
+fig5d_T.box
+```
+
+```{r}
+fig5d_T.cut_km <- merge(fig5d_T.cut_gini, GiniClin_tumor[, c("OS_years_5_years_trunk_20190329", "status_5_years_trunk_20190329")], by = "row.names")
+fig5d_T.cut_km <- as.data.frame(fig5d_T.cut_km, row.names = fig5d_T.cut_km$Row.names)
+fig5d_T.cut_km$Row.names <- NULL
+
+fig5d_T.test <- survfit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ Class, data = fig5d_T.cut_km)
+
+summary(fig5d_T.test)$table
+```
+
+```{r}
+ggsurvplot(fig5d_T.test,
+         pval = TRUE,
+         palette = c("#e64b35", "#4dbbd5", "#999999"),
+         break.time.by = 1,
+         ggtheme = theme_classic(),
+         #legend.labs = c("Above median", "Under median"),
+         risk.table = "abs_pct",
+         risk.table.y.text = FALSE,
+         xlab = "Time (years)",
+         title = "giniSurv_Class",
+         xlim = c(0,5.2),
+         axes.offset = FALSE,
+         risk.table.fontsize = 2.5,
+         legend = c(0.9,0.9),
+         risk.table.title = "Number at risk by time: n (%)",
+         font.main = c())
+```
+
+
+```{r}
+fig5d_S <- pheatmap(t(ihcHeatT_tumor_norm3[,grep("_S", colnames(ihcHeatT_tumor_norm3))]), clustering_method = "ward.D2",
+        clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+        cutree_cols = 3,
+        #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+        annotation_col = ihcAnno,
+        annotation_colors = ihcAnno_color,
+        fontsize = 5,
+        show_colnames = F
+)
+fig5d_S
+```
+
+```{r}
+fig5d_S.cluster <- fig5d_S$tree_col
+
+fig5d_S.cluster.plot <- plot(fig5d_S.cluster, hang = -1, cex=0.6, axes=FALSE, ann=FALSE)
+
+fig5d_S.cut <- cutree(fig5d_S.cluster, 3)
+
+fig5d_S.cut_1 <- names(fig5d_S.cut)[fig5d_S.cut == 1]
+fig5d_S.cut_2 <- names(fig5d_S.cut)[fig5d_S.cut == 2]
+fig5d_S.cut_3 <- names(fig5d_S.cut)[fig5d_S.cut == 3]
+
+fig5d_S.cut_gini <- merge(AB_Gini_anno, fig5d_S.cut, by = "row.names", all.y = TRUE)
+
+fig5d_S.cut_gini <- as.data.frame(fig5d_S.cut_gini, row.names = fig5d_S.cut_gini$Row.names)
+
+fig5d_S.cut_gini$Row.names <- NULL
+
+fig5d_S.cut_gini <- rename(fig5d_S.cut_gini, c("Cluster"="y"))
+```
+
+```{r}
+fig5d_S.cut_gini[fig5d_S.cut_gini$Cluster == 1, "Class"] <- "Immune cold"
+fig5d_S.cut_gini[fig5d_S.cut_gini$Cluster == 2, "Class"] <- "Median"
+fig5d_S.cut_gini[fig5d_S.cut_gini$Cluster == 3, "Class"] <- "Immune hot"
+fig5d_S.cut_gini$Class = factor(fig5d_S.cut_gini$Class, levels = c("Immune hot", "Median", "Immune cold"))
+```
+
+```{r}
+fig5d_S.cut_gini <- as.data.frame(fig5d_S.cut_gini)
+fig5d_S.cut_gini <- rename(fig5d_S.cut_gini, c("GiniIndex"="Gini index"))
+compare_means(GiniIndex ~ Class, data = fig5d_S.cut_gini)
+```
+
+```{r}
+fig5d_S.box <- ggplot(fig5d_S.cut_gini, aes(x = Class, y = GiniIndex, fill=Class)) +
+    geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+    theme_classic() +
+    # coord_flip() +
+    scale_fill_manual(values = c("#e64b35", "#4dbbd5", "#999999")) +
+    labs(title = "Class", x = "Class") +
+    theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+    stat_compare_means(paired = NULL)
+```
+
+```{r}
+fig5d_S.cut_km <- merge(fig5d_S.cut_gini, GiniClin_tumor[, c("OS_years_5_years_trunk_20190329", "status_5_years_trunk_20190329")], by = "row.names")
+fig5d_S.cut_km <- as.data.frame(fig5d_S.cut_km, row.names = fig5d_S.cut_km$Row.names)
+fig5d_S.cut_km$Row.names <- NULL
+
+fig5d_S.test <- survfit(Surv(OS_years_5_years_trunk_20190329, status_5_years_trunk_20190329) ~ Class, data = fig5d_S.cut_km)
+
+summary(fig5d_S.test)$table
+```
+
+```{r}
+ggsurvplot(fig5d_S.test,
+         pval = TRUE,
+         palette = c("#e64b35", "#4dbbd5", "#999999"),
+         break.time.by = 1,
+         ggtheme = theme_classic(),
+         #legend.labs = c("Above median", "Under median"),
+         risk.table = "abs_pct",
+         risk.table.y.text = FALSE,
+         xlab = "Time (years)",
+         title = "giniSurv_Class",
+         xlim = c(0,5.2),
+         axes.offset = FALSE,
+         risk.table.fontsize = 2.5,
+         legend = c(0.9,0.9),
+         risk.table.title = "Number at risk by time: n (%)",
+         font.main = c())
+```
+
+
+```{r}
+ihcHeatT_tumor_norm4 <- ihcHeatT.norm3[rownames(ihcHeatT_tumor_norm2),grep("SAndTM", colnames(ihcHeatT.norm3))]
+
+ihcHeatT_tumor_norm4 <- merge(AB_Gini_anno, ihcHeatT_tumor_norm4, by="row.names", all=FALSE)
+
+ihcHeatT_tumor_norm4 <- as.data.frame(ihcHeatT_tumor_norm4, row.names = ihcHeatT_tumor_norm4$Row.names)
+ihcHeatT_tumor_norm4$Row.names <- NULL
+
+ihcHeatT_tumor_norm4 <- rename(ihcHeatT_tumor_norm4, c("GiniIndex"="Gini index"))
+
+ihcHeatT_tumor_norm4 <- ihcHeatT_tumor_norm4 %>% rename_with(~ gsub("SQ1", "_",.x))
+
+ihcHeatT_tumor_norm4 <- ihcHeatT_tumor_norm4[,grep("CD44", colnames(ihcHeatT_tumor_norm4), invert = TRUE)]
+```
+
+```{r}
+fig5d_ST <- pheatmap(t(ihcHeatT_tumor_norm4[,c(2:12)]), clustering_method = "ward.D2",
+        clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+        cutree_cols = 2,
+        #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+        annotation_col = ihcAnno,
+        annotation_colors = ihcAnno_color,
+        fontsize = 5,
+        show_colnames = F)
+
+fig5d_ST
+```
+
+```{r}
+fig5d_ST.cluster <- fig5d_ST$tree_col
+
+fig5d_ST.cluster.plot <- plot(fig5d_ST.cluster, hang = -1, cex=0.6, axes=FALSE, ann=FALSE)
+
+#plot(fig5d_ST.cluster, hang = -1, cex=0.6, axes=FALSE, ann=FALSE)
+
+fig5d_ST.cut <- cutree(fig5d_ST.cluster, 2)
+
+fig5d_ST.cut_1 <- names(fig5d_ST.cut)[fig5d_ST.cut == 1]
+fig5d_ST.cut_2 <- names(fig5d_ST.cut)[fig5d_ST.cut == 2]
+
+fig5d_ST.cut_gini <- merge(AB_Gini_anno, fig5d_ST.cut, by = "row.names", all.y = TRUE)
+
+fig5d_ST.cut_gini <- as.data.frame(fig5d_ST.cut_gini, row.names = fig5d_ST.cut_gini$Row.names)
+
+fig5d_ST.cut_gini$Row.names <- NULL
+
+fig5d_ST.cut_gini <- rename(fig5d_ST.cut_gini, c("Cluster"="y"))
+```
+
+```{r}
+fig5d_ST.cut_gini[fig5d_ST.cut_gini$Cluster == 1, "Class"] <- "Immune cold"
+fig5d_ST.cut_gini[fig5d_ST.cut_gini$Cluster == 2, "Class"] <- "Immune hot"
+fig5d_ST.cut_gini$Class = factor(fig5d_ST.cut_gini$Class, levels = c("Immune hot", "Immune cold"))
+```
+
+```{r}
+fig5d_ST.cut_gini <- as.data.frame(fig5d_ST.cut_gini)
+fig5d_ST.cut_gini <- rename(fig5d_ST.cut_gini, c("GiniIndex"="Gini index"))
+compare_means(GiniIndex ~ Class, data = fig5d_ST.cut_gini)
+```
+
+```{r}
+fig5d_ST.box <- ggplot(fig5d_ST.cut_gini, aes(x = Class, y = GiniIndex, fill=Class)) +
+    geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black") +
+    theme_classic() +
+    # coord_flip() +
+    scale_fill_manual(values = c("#e64b35", "#4dbbd5", "#999999")) +
+    labs(title = "Class", x = "Class") +
+    theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+    stat_compare_means(paired = NULL)
+fig5d_ST.box
+```
+## Ordered by Gini
+```{r}
+pheatmap(t(ihcHeatT_tumor_norm4[order(ihcHeatT_tumor_norm4$GiniIndex),c(2:12)]),
+         #clustering_method = "ward.D2",
+         cluster_rows = F, cluster_cols = F,
+         cutree_cols = 2,
+         #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+         annotation_col = ihcAnno,
+         annotation_colors = ihcAnno_color,
+         fontsize = 8,
+         show_colnames = F)
+```
+
+# IHC correlation plot
+
+```{r}
+fig6 <- corrplot(data.matrix(ihcCorR), method = "circle",col = rev(COL2('RdBu', 200)),
+                 p.mat = data.matrix(ihcCorP), insig = "label_sig", sig.level = c(.001, .01, .05), pch.cex = 0.8,
+                 tl.col = "black")
+fig6
+```
+
+```{r}
+ihcCorP_melt <- as.data.frame(ihcCorP_melt)
+ihcCorP_melt$var1 <- factor(ihcCorP_melt$var1, levels = c("CD3","CD4","CD8","CD20","CD44","CD45RO","CD138","CD163","FOXP3","NKp46","PD1","PDL1"))
+ihcCorP_melt$var2 <- factor(ihcCorP_melt$var2, levels = c("SAndT","Tumor", "Stroma"))
+
+fig6b <- ggplot(ihcCorP_melt, aes(var1, var2, fill = Corr)) +
+  geom_point(shape=21, colour = "black", size = 12)+
+  theme_classic()+
+  scale_fill_gradientn(colours = rev(brewer.pal(5, "Spectral")))+
+  labs(title = "Correlation", x = "IHC marker", y = "Position") +
+  theme(axis.text = element_text(size = 10, colour = "black"), axis.title = element_text(size = 10),plot.title = element_text(size=15))+
+  geom_text(aes(label = label), size = 5, colour = "black")
+
+fig6b
+```
+
+
+# Figure 9 Lymphotrack cluster plot
+
+## L481
+```{r}
+L481_L <- as.data.frame(L481_L)
+
+L481_R <- as.data.frame(L481_R)
+
+L481_all <- as.data.frame(L481_all)
+
+L481_L["Class"] <- "Lymphotrack"
+
+L481_R["Class"] <- "RNAseq"
+```
+
+```{r}
+npj.pal = pal_npg("nrc", alpha = 0.9)(10)
+simp.pal = pal_simpsons("springfield")(16)
+nejm.pal = pal_nejm("default", alpha = 0.9)(8)
+jama.pal = pal_jama("default",alpha = 0.9)(7)
+fig9_pal = c(c("#E0E3E3FF"), npj.pal, simp.pal, nejm.pal, jama.pal)
+
+fig9_L481 <- ggplot(L481_all, aes(x= Type, y= Fraction, fill= Clone)) +
+  geom_col(position = "stack", width = 0.6) +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  scale_fill_manual(values = fig9_pal) +
+  scale_y_break(c(40,95), scales = 0.2, ticklabels = c(95,100))
+
+
+gg.gap(plot = fig9_L481,
+       segments = c(40,80),
+       ylim = c(0, 100),
+       tick_width = c(5, 10),
+       rel_heights = c(0.3, 0, 0.1)
+       )
+
+ggplot(L481_L, aes(x=Class, y= Fraction, fill= reorder(Lymphotrack, -Fraction))) +
+     geom_col(position = "stack", width = 0.6) +
+     theme_classic() +
+     scale_fill_manual(values = fig9_pal) +
+     scale_y_break(c(7,92), scales = 0.2, ticklabels = c(95,100), expand = FALSE) +
+     scale_y_continuous(expand = c(0,0), breaks = c(0,2,4,6))
+
+ggplot(L481_R, aes(x=Class, y= Fraction, fill= reorder(RNAseq, -Fraction))) +
+     geom_col(position = "stack", width = 0.6) +
+     theme_classic() +
+     scale_fill_manual(values = fig9_pal) +
+     scale_y_break(c(40,92), scales = 0.2, ticklabels = c(95,100), expand = FALSE) +
+     scale_y_continuous(expand = c(0,0), breaks = c(0,10,20,30,40))
+
+```
+
+
+# Fig10 Vocanol plot
+
+```{r}
+diffGene <- read.table('/Users/huiyu818/Project/TCR/DifferentialExpr/bomi2_fullResult.txt', sep = "\t", header = TRUE, row.names = 1)
+
+# Sort the table according to the padj(adjusted p-value) ascending.
+# For genes with same padj, order according to the log2FC descending.
+# Then , at the end of the coding is essensial
+diffGene <- diffGene[order(diffGene$padj, diffGene$log2FoldChange, decreasing = c(FALSE, TRUE)),]
+
+library('biomaRt')
+
+mart <- useDataset("hsapiens_gene_ensembl", useMart("ensembl"))
+
+diff_genes_eid <- rownames(diffGene)
+
+diff_genes_G_list <- getBM(filters="ensembl_gene_id", attributes=c("ensembl_gene_id", "hgnc_symbol", "description"), values=diff_genes_eid, mart=mart)
+
+# diffGene_hgnc <- merge(diffGene, diff_genes_G_list, by.x="row.names", by.y = "ensembl_gene_id")
+
+# The significantly up-regulated genes are labeled with 'UP'
+diffGene[which(diffGene$log2FoldChange >= 1 & diffGene$padj < 0.01), 'sign'] <- 'UP'
+
+# The significantly down-regulated genes are labeled with 'DOWN'
+diffGene[which(diffGene$log2FoldChange <= -1 & diffGene$padj < 0.01), 'sign'] <- 'DOWN'
+
+# The rest genes are labeled 'none'
+diffGene[which(abs(diffGene$log2FoldChange) <= 1 | diffGene$padj >= 0.01), 'sign'] <- 'none'
+
+diffGene["ENSG00000180644", "label"] <- "PRF1"
+diffGene["ENSG00000100453", "label"] <- "GZMB"
+diffGene["ENSG00000100450", "label"] <- "GZMH"
+diffGene["ENSG00000120217", "label"] <- "PD-L1"
+diffGene["ENSG00000089692", "label"] <- "LAG3"
+diffGene["ENSG00000181847", "label"] <- "TIGIT"
+diffGene[diff_genes_G_list[diff_genes_G_list$hgnc_symbol == "IFNG","ensembl_gene_id"], "label"] <- "IFNG"
+diffGene[diff_genes_G_list[diff_genes_G_list$hgnc_symbol == "IL17A","ensembl_gene_id"], "label"] <- "IL17A"
+diffGene[diff_genes_G_list[diff_genes_G_list$hgnc_symbol == "NKG7","ensembl_gene_id"], "label"] <- "NKG7"
+diffGene[diff_genes_G_list[diff_genes_G_list$hgnc_symbol == "FASLG","ensembl_gene_id"], "label"] <- "FASLG"
+diffGene[diff_genes_G_list[diff_genes_G_list$hgnc_symbol == "GZMA","ensembl_gene_id"], "label"] <- "GZMA"
+diffGene[diff_genes_G_list[diff_genes_G_list$hgnc_symbol == "NCR1","ensembl_gene_id"], "label"] <- "NCR1"
+diffGene[diff_genes_G_list[diff_genes_G_list$hgnc_symbol == "GZMM","ensembl_gene_id"], "label"] <- "GZMM"
+
+library(ggrepel)
+
+fig10 <- ggplot(data = diffGene, aes(x = log2FoldChange, y = -log10(padj), color = sign)) + 
+  geom_point(size = 1) +  #Create scatter plot
+  scale_color_manual(values = c('red', 'gray', 'green'), limits = c('UP', 'none', 'DOWN')) +  #Set the color
+  labs(x = 'log2 Fold Change', y = '-log10 adjust p-value', title = 'High clonality vs Low clonality', color = '') +  #Set the labels
+  theme(plot.title = element_text(hjust = 0.5, size = 14), panel.grid = element_blank(), #Change the them and grid lines
+  panel.background = element_rect(color = 'black', fill = 'transparent'), 
+  legend.key = element_rect(fill = 'transparent')) +
+  geom_vline(xintercept = c(-1, 1), lty = 3, color = 'black') +  #Add threshold line
+  geom_hline(yintercept = 2, lty = 3, color = 'black') +
+  xlim(-12, 12) + ylim(0, 35) + #Set the curve boundary
+  geom_text_repel(
+    data = diffGene,
+    aes(label = label),
+    size = 3, segment.color = "blue", show.legned = FALSE,
+    point.padding = unit(0.8, "lines")
+  )
+
+fig10
+```
+
+
+#Figure11 Phenotype
+
+```{r}
+library(Hmisc)
+
+library(corrplot)
+
+library(readxl)
+
+bomi2_pheno <- read_excel("~/Project/BOMI2/bomi2_phenotyped_densities.xlsx", sheet = "phenotyped_densities")
+
+View(bomi2_pheno)
+
+bomi2_pheno <- as.data.frame(bomi2_pheno, row.names = bomi2_pheno$ID)
+
+phenoClin <- merge(GiniClin_tumor, bomi2_pheno, by = "ID", sort = TRUE)
+
+phenoClin <- as.data.frame(phenoClin, row.names = phenoClin$ID)
+
+write.csv(phenoClin, file = "/Users/huiyu818/Project/BOMI2/bomi2_phenotyped_densities_clin.csv")
+
+phenoClin_gini <- merge(GiniClin_tumor[, c("ID", "GiniIndex", "giniGroup")], bomi2_pheno, by="ID", sort = TRUE)
+
+phenoClin_gini <- as.data.frame(phenoClin_gini, row.names = phenoClin_gini$ID)
+phenoClin_gini$ID <- NULL
+
+phenoClin_gini2 <- subset(phenoClin_gini, select = -giniGroup)
+
+phenoClin_gini2 <- as.data.frame(phenoClin_gini2)
+
+phenoClin_corr <- rcorr(as.matrix(phenoClin_gini2), type = "spearman")
+
+write.csv(phenoClin_corr$r, file = "~/Project/TCR_Summary/Figure11/phenoCor.csv")
+write.csv(phenoClin_corr$P, file = "~/Project/TCR_Summary/Figure11/phenoPvalue.csv")
+
+cor(phenoClin_gini2, use = "pairwise.complete.obs", method = "spearman")
+# recorr and cor fits well
+
+phenoCor_melt <- read_excel("~/Project/TCR_Summary/Figure11/giniPheno.xlsx", sheet = "merge")
+
+phenoCor_melt <- as.data.frame(phenoCor_melt)
+
+phenoCor_melt$var1 <- factor(phenoCor_melt$var1, levels = c("CD4 Eff","CD4 Treg","CD8 Eff","CD8 Treg","B-cell","NK-cell","NKT-cell","M1","M2","CD163","iDC","mDC","pDC"))
+
+phenoCor_melt$var2 <- factor(phenoCor_melt$var2, levels = c("SAndT","Tumor", "Stroma"))
+
+fig11 <- ggplot(phenoCor_melt, aes(var1, var2, fill = Corr)) +
+  geom_point(shape=21, colour = "black", size = 12)+
+  theme_classic()+
+  scale_fill_gradientn(colours = rev(brewer.pal(5, "Spectral")))+
+  labs(title = "Correlation", x = "Cell phenotypes", y = "Position") +
+  theme(axis.text = element_text(size = 10, colour = "black"), axis.title = element_text(size = 10),plot.title = element_text(size=15))+
+  geom_text(aes(label = label), size = 5, colour = "black")
+
+fig11
+```
+
+## Cluster
+### All gini
+
+This method start from the t cell pheno type data to check if the gini index is linked with these group. But there is also a angle that start from Gini index (25%) to analyze the t cell composition changes
+```{r}
+
+# ihcHeatT_tumor_norm4 <- ihcHeatT.norm3[rownames(ihcHeatT_tumor_norm2),grep("SAndTM", colnames(ihcHeatT.norm3))]
+# 
+# ihcHeatT_tumor_norm4 <- merge(AB_Gini_anno, ihcHeatT_tumor_norm4, by="row.names", all=FALSE)
+# 
+# ihcHeatT_tumor_norm4 <- as.data.frame(ihcHeatT_tumor_norm4, row.names = ihcHeatT_tumor_norm4$Row.names)
+# ihcHeatT_tumor_norm4$Row.names <- NULL
+# 
+# ihcHeatT_tumor_norm4 <- rename(ihcHeatT_tumor_norm4, c("GiniIndex"="Gini index"))
+# 
+# ihcHeatT_tumor_norm4 <- ihcHeatT_tumor_norm4 %>% rename_with(~ gsub("SQ1", "_",.x))
+# 
+# ihcHeatT_tumor_norm4 <- ihcHeatT_tumor_norm4[,grep("CD44", colnames(ihcHeatT_tumor_norm4), invert = TRUE)]
+
+phenoClin_gini3 <- phenoClin_gini2[, grep("Pan", colnames(phenoClin_gini2), invert = T)]
+
+phenoClin_gini3.norm <- cbind(phenoClin_gini3[,1],scale(phenoClin_gini3[,c(2:40)], center = T, scale = T))
+phenoClin_gini3.norm <- as.data.frame(phenoClin_gini3.norm)
+colnames(phenoClin_gini3.norm)[colnames(phenoClin_gini3.norm) == "V1"] = "GiniIndex"
+```
+
+```{r}
+min.max.norm <- function(x){
+  (x - min(x, na.rm = TRUE))/(max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+}
+
+phenoClin_gini3.norm2 <- apply(phenoClin_gini3[, c(2:40)], 2, min.max.norm)
+phenoClin_gini3.norm2 <- as.data.frame(phenoClin_gini3.norm2)
+phenoClin_gini3.norm2 <- cbind(phenoClin_gini3[,1], phenoClin_gini3.norm2)
+colnames(phenoClin_gini3.norm2)[colnames(phenoClin_gini3.norm2) == "phenoClin_gini3[, 1]"] = "GiniIndex"
+```
+
+
+```{r}
+pheatmap(t(phenoClin_gini2[,grep("st_", colnames(phenoClin_gini2), invert = T)]), clustering_method = "ward.D2",
+        clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+        cutree_cols = 2,
+        #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+        annotation_col = ihcAnno,
+        annotation_colors = ihcAnno_color,
+        fontsize = 5,
+        show_colnames = F)
+
+pheatmap(t(phenoClin_gini3.norm[,c(1,grep("st_", colnames(phenoClin_gini3.norm[,c(2:16)]), invert = T)+1)]), clustering_method = "ward.D2",
+         clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+         cutree_cols = 2,
+         #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+         annotation_col = ihcAnno,
+         annotation_colors = ihcAnno_color,
+         fontsize = 5,
+         show_colnames = F)
+pheatmap(t(phenoClin_gini3.norm2[,grep("st_", colnames(phenoClin_gini3.norm2[,c(1:16)]), invert = T)]), clustering_method = "ward.D2",
+         clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+         cutree_cols = 2,
+         #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+         annotation_col = ihcAnno,
+         annotation_colors = ihcAnno_color,
+         fontsize = 5,
+         show_colnames = F)
+
+pheatmap(t(phenoClin_gini3.norm2[,grep("st_", colnames(phenoClin_gini3.norm2[,c(2:16)]))]), clustering_method = "ward.D2",
+          cluster_rows = F, clustering_distance_cols = "euclidean",
+          cutree_cols = 5,
+          #color = colorRampPalette(brewer.pal(n = 9, name = "YlOrBr"))(100),
+          annotation_col = ihcAnno,
+          annotation_colors = ihcAnno_color,
+          fontsize = 5,
+          show_colnames = F)
+```
+
+```{r}
+fig11b <- pheatmap(t(phenoClin_gini3.norm2[,c(1,grep("st_", colnames(phenoClin_gini3.norm2[,c(2:16)]))+1)]), clustering_method = "ward.D2",
+          cluster_rows = F, clustering_distance_cols = "euclidean",
+          cutree_cols = 3,
+          #color = colorRampPalette(brewer.pal(n = 9, name = "YlOrBr"))(100),
+          annotation_col = ihcAnno,
+          annotation_colors = ihcAnno_color,
+          fontsize = 5,
+          show_colnames = F)
+fig11b
+# pheatmap(t(phenoClin_gini3.norm2[,c(1,grep("st_", colnames(phenoClin_gini3.norm2[,c(2:16)]))+1)]), clustering_method = "ward.D2",
+#          cluster_rows = F, clustering_distance_cols = "euclidean",
+#          cutree_cols = 6,
+#          #color = colorRampPalette(brewer.pal(n = 9, name = "YlOrBr"))(100),
+#          annotation_col = ihcAnno,
+#          annotation_colors = ihcAnno_color,
+#          fontsize = 10,
+#          show_colnames = F)
+```
+
+```{r}
+pheatmap(t(phenoClin_gini3.norm2[,grep("st_", colnames(phenoClin_gini3.norm2[,c(2:13)]))+1]), clustering_method = "ward.D2",
+         cluster_rows = F, clustering_distance_cols = "euclidean",
+         cutree_cols = 4,
+         #color = colorRampPalette(brewer.pal(n = 9, name = "YlOrBr"))(100),
+         annotation_col = ihcAnno,
+         annotation_colors = ihcAnno_color,
+         fontsize = 10,
+         show_colnames = F)
+```
+
+
+```{r}
+fig11b.cluster <- fig11b$tree_col
+
+fig11b.cluster.plot <- plot(fig11b.cluster, hang = -1, cex=0.6, axes=FALSE, ann=FALSE)
+
+fig11b.cut <- cutree(fig5d_T.cluster, 3)
+
+# fig5d_T.cut_1 <- names(fig5d_T.cut)[fig5d_T.cut == 1]
+# fig5d_T.cut_2 <- names(fig5d_T.cut)[fig5d_T.cut == 2]
+# 
+# fig5d_T.cut_gini <- merge(AB_Gini_anno, fig5d_T.cut, by = "row.names", all.y = TRUE)
+# 
+# fig5d_T.cut_gini <- as.data.frame(fig5d_T.cut_gini, row.names = fig5d_T.cut_gini$Row.names)
+# 
+# fig5d_T.cut_gini$Row.names <- NULL
+# 
+# fig5d_T.cut_gini <- rename(fig5d_T.cut_gini, c("Cluster"="y"))
+```
+
+```{r}
+fig11c <- pheatmap(t(phenoClin_gini3.norm2[!(rownames(phenoClin_gini3.norm2) == "L464T"),grep("st_", colnames(phenoClin_gini3.norm2[,c(1:14)]))]),
+                   clustering_method = "ward.D2",
+                   cluster_rows = F, clustering_distance_cols = "euclidean",
+                   cutree_cols = 4,
+                   #color = colorRampPalette(brewer.pal(n = 9, name = "YlOrBr"))(100),
+                   annotation_col = ihcAnno,
+                   annotation_colors = ihcAnno_color,
+                   fontsize = 5,
+                   show_colnames = F)
+```
+
+```{r}
+fig11c.cluster <- fig11c$tree_col
+
+fig11c.cluster.plot <- plot(fig11c.cluster, hang = -1, cex=0.6, axes=FALSE, ann=FALSE)
+
+fig11c.cut <- cutree(fig11c.cluster, 4)
+```
+
+```{r}
+fig11c.cut_gini <- merge(phenoClin_gini3.norm2[!(rownames(phenoClin_gini3.norm2) == "L464T"),c(1,grep("st_", colnames(phenoClin_gini3.norm2[,c(1:14)])))],
+                         fig11c.cut, by = "row.names", all.y = TRUE)
+fig11c.cut_gini <- as.data.frame(fig11c.cut_gini, row.names = fig11c.cut_gini$Row.names)
+fig11c.cut_gini$Row.names <- NULL
+colnames(fig11c.cut_gini)[colnames(fig11c.cut_gini) == "y"] <- "CutGroup"
+fig11c.cut_gini$CutGroup = factor(fig11c.cut_gini$CutGroup)
+```
+
+```{r}
+ggplot(fig11c.cut_gini, aes(x = CutGroup, y = GiniIndex, fill=CutGroup)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black", notch = FALSE) +
+  theme_classic() +
+  #coord_flip() +
+  #scale_color_npg() +
+  labs(title = "Gini", x = "Group") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+```
+```{r}
+ggplot(fig11c.cut_gini, aes(x = CutGroup, y = s_CD4_Treg, fill=CutGroup)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black", notch = FALSE) +
+  theme_classic() +
+  #coord_flip() +
+  #scale_color_npg() +
+  labs(title = "CD4_Treg", x = "Group") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+```
+```{r}
+ggplot(fig11c.cut_gini, aes(x = CutGroup, y = st_CD4_Eff, fill=CutGroup)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black", notch = FALSE) +
+  theme_classic() +
+  #coord_flip() +
+  #scale_color_npg() +
+  labs(title = "CD4_Eff", x = "Group") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+```
+
+```{r}
+fig11c.cut_gini.melt <- melt(fig11c.cut_gini, na.rm = F)
+
+ggplot(fig11c.cut_gini.melt, aes(x = variable, y = value, fill=CutGroup)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black", notch = FALSE) +
+  theme_classic() +
+  #coord_flip() +
+  scale_fill_npg(palette = c("nrc"), alpha=1) +
+  labs(x = "T cell phenotype") +
+  theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+  #stat_compare_means(paired = NULL)
+```
+```{r}
+ggplot(fig11c.cut_gini.melt, aes(x = variable, y = value, fill=variable)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black", notch = FALSE) +
+  theme_classic() +
+  #coord_flip() +
+  scale_fill_npg(palette = c("nrc"), alpha=1) +
+  labs(x = "T cell phenotype") +
+  theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  facet_wrap(~CutGroup,ncol = 1)
+```
+
+### Smooth line
+```{r}
+fig11c.cut_gini.melt2 <- melt(cbind("ID"=rownames(fig11c.cut_gini),fig11c.cut_gini[,c(1:5)]), na.rm = F, id.vars = c("ID", "GiniIndex"), variable.factor =F)
+
+fig11c.cut_gini.melt2$variable <- as.factor(fig11c.cut_gini.melt2$variable)
+
+# Smooth value trend line
+ggplot(fig11c.cut_gini.melt2, aes(x = GiniIndex, y = value)) +
+  geom_smooth(aes(color=variable,fill=variable), method = "loess") +
+  theme_classic() +
+  #coord_flip() +
+  scale_color_npg(palette = c("nrc"), alpha=1) +
+  scale_fill_npg(palette = c("nrc"), alpha=1) +
+  labs(x = "Gini coefficient") +
+  theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Raw stacking value
+ggplot(fig11c.cut_gini.melt2, aes(x = GiniIndex, y = value,fill=variable)) +
+  geom_area() +
+  theme_classic() +
+  #coord_flip() +
+  scale_color_npg(palette = c("nrc"), alpha=1) +
+  scale_fill_npg(palette = c("nrc"), alpha=1) +
+  labs(x = "Gini coefficient") +
+  theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Raw fraction change
+ggplot(fig11c.cut_gini.melt2, aes(x = GiniIndex, y = value,fill=variable)) +
+    geom_area(position = "fill") +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=0.8) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.8) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# smooth density value
+ggplot(fig11c.cut_gini.melt2, aes(x = GiniIndex, y = value,fill=variable)) +
+  geom_area(fill=NA) +
+  stat_smooth(geom = "area", method = "loess", span = 1/3, alpha=0.4)+
+  theme_classic() +
+  #coord_flip() +
+  scale_color_npg(palette = c("nrc"), alpha=1) +
+  scale_fill_npg(palette = c("nrc"), alpha=1) +
+  labs(x = "Gini coefficient") +
+  theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Smooth stacking density value
+ggplot(fig11c.cut_gini.melt2, aes(x = GiniIndex, y = value)) +
+    stat_smooth(aes(color=variable,fill=variable), method = "loess", geom="area", position = "stack",span = 0.5) +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=1) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.7) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Smooth fraction changes
+ggplot(fig11c.cut_gini.melt2, aes(x = GiniIndex, y = value)) +
+    stat_smooth(aes(color=variable,fill=variable), method = "loess", geom="area", position = "fill",span = 0.3) +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=1) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.7) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))+
+    scale_x_continuous(expand = c(0,0), limits = c(0,0.8)) + scale_y_continuous(expand = c(0,0), limits = c(0,1))
+
+
+# Raw fraction change of unnormalized data
+phenoClin_gini3.melt <- melt(cbind("ID"=rownames(phenoClin_gini3),phenoClin_gini3[,c(1,grep("st_", colnames(phenoClin_gini3[,c(1:13)])))]),
+                             na.rm = F, id.vars = c("ID", "GiniIndex"), variable.factor =F)
+
+ggplot(phenoClin_gini3.melt, aes(x = GiniIndex, y = value,fill=variable)) +
+    geom_area(position = "fill") +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=0.8) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.8) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Raw stacking of unnormalized data
+ggplot(phenoClin_gini3.melt, aes(x = GiniIndex, y = value,fill=variable)) +
+    geom_area(position = "stack") +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=0.8) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.8) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Smooth fraction change of unnormalized data
+ggplot(phenoClin_gini3.melt, aes(x = GiniIndex, y = value)) +
+    stat_smooth(aes(color=variable,fill=variable), method = "loess", geom="area", position = "fill",span = 0.3) +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=1) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.7) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))+
+    scale_y_continuous(expand = c(0,0), limits = c(0,1))
+
+# Smooth stacking unnormalized data
+ggplot(phenoClin_gini3.melt, aes(x = GiniIndex, y = value)) +
+    stat_smooth(aes(color=variable,fill=variable), method = "loess", geom="area", position = "stack",span = 0.3) +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=1) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.7) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+```
+
+```{r}
+# Raw stacking plot with sampple density using 
+fig11_gini <- ggplot(fig11c.cut_gini.melt2, aes(x = GiniIndex, y = 1)) + geom_vline(xintercept=fig11c.cut_gini.melt2[fig11c.cut_gini.melt2$variable == "st_CD4_Eff", "GiniIndex"]) + theme_classic() + theme(panel.background = element_blank())
+
+# normalized raw stacking data
+fig11e_normS <- ggplot(fig11c.cut_gini.melt2, aes(x = GiniIndex, y = value,fill=variable)) +
+  geom_area() +
+  theme_classic() +
+  #coord_flip() +
+  scale_color_npg(palette = c("nrc"), alpha=1) +
+  scale_fill_npg(palette = c("nrc"), alpha=1) +
+  labs(x = "Gini coefficient") +
+  theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# raw stacking data
+fig11e_rawS <- ggplot(phenoClin_gini3.melt, aes(x = GiniIndex, y = value,fill=variable)) +
+  geom_area() +
+  theme_classic() +
+  #coord_flip() +
+  scale_color_npg(palette = c("nrc"), alpha=1) +
+  scale_fill_npg(palette = c("nrc"), alpha=1) +
+  labs(x = "Gini coefficient") +
+  theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# smoothed raw stacking data
+fig11e_rawStackSmooth <- ggplot(phenoClin_gini3.melt, aes(x = GiniIndex, y = value)) +
+    stat_smooth(aes(color=variable,fill=variable), method = "loess", geom="area", position = "stack",span = 0.4) +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=1) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.9) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# smoothed raw fraction change data
+fig11e_rawSmooth <- ggplot(phenoClin_gini3.melt, aes(x = GiniIndex, y = value)) +
+    stat_smooth(aes(color=variable,fill=variable), method = "loess", geom="area", position = "fill",span = 0.4) +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=1) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.9) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+ggarrange(fig11e_rawS, fig11_gini, ncol = 1, nrow = 2, align = "hv")
+
+ggarrange(fig11e_rawSmooth, fig11_gini, ncol = 1, nrow = 2, align = "hv")
+
+ggarrange(fig11e_rawStackSmooth, fig11e_rawSmooth, fig11_gini, ncol = 1, nrow = 3, align = "hv", common.legend = T)
+
+```
+
+
+### Ordered by gini
+```{r}
+pheatmap(t(phenoClin_gini3.norm2[order(phenoClin_gini3.norm2$GiniIndex),c(2:40)]),
+         clustering_method = "ward.D2",
+         cluster_rows = F, clustering_distance_cols = "euclidean",
+         cutree_cols = 4,
+         #color = colorRampPalette(brewer.pal(n = 9, name = "YlOrBr"))(100),
+         annotation_col = ihcAnno,
+         annotation_colors = ihcAnno_color,
+         fontsize = 5,
+         show_colnames = F)
+
+pheatmap(t(phenoClin_gini3.norm2[order(phenoClin_gini3.norm2$GiniIndex),c(17:31)]),
+         clustering_method = "ward.D2",
+         cluster_rows = F, cluster_cols = F,
+         cutree_cols = 4,
+         #color = colorRampPalette(brewer.pal(n = 9, name = "YlOrBr"))(100),
+         annotation_col = ihcAnno,
+         annotation_colors = ihcAnno_color,
+         fontsize = 5,
+         show_colnames = F)
+```
+
+### High gini group
+```{r}
+fig11d <- pheatmap(t(phenoClin_gini3.norm2[phenoClin_gini3.norm2$GiniIndex >= 0.25431,grep("st_", colnames(phenoClin_gini3.norm2[,c(1:14)]))]),
+                   clustering_method = "ward.D2",
+                   cluster_rows = F, clustering_distance_cols = "euclidean",
+                   cutree_cols = 3,
+                   #color = colorRampPalette(brewer.pal(n = 9, name = "YlOrBr"))(100),
+                   annotation_col = ihcAnno,
+                   annotation_colors = ihcAnno_color,
+                   fontsize = 5,
+                   show_colnames = F)
+
+```
+
+```{r}
+fig11d.cluster <- fig11d$tree_col
+
+fig11d.cluster.plot <- plot(fig11d.cluster, hang = -1, cex=0.6, axes=FALSE, ann=FALSE)
+
+fig11d.cut <- cutree(fig11d.cluster, 3)
+```
+```{r}
+fig11d.cut_gini <- merge(phenoClin_gini3.norm2[!(rownames(phenoClin_gini3.norm2) == "L464T"),c(1,grep("st_", colnames(phenoClin_gini3.norm2[,c(1:14)])))],
+                         fig11d.cut, by = "row.names", all.y = TRUE)
+fig11d.cut_gini <- as.data.frame(fig11d.cut_gini, row.names = fig11d.cut_gini$Row.names)
+fig11d.cut_gini$Row.names <- NULL
+colnames(fig11d.cut_gini)[colnames(fig11d.cut_gini) == "y"] <- "CutGroup"
+fig11d.cut_gini$CutGroup = factor(fig11d.cut_gini$CutGroup)
+```
+
+```{r}
+fig11d.cut_gini.melt <- melt(fig11d.cut_gini, na.rm = F)
+
+ggplot(fig11d.cut_gini.melt, aes(x = variable, y = value, fill=CutGroup)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black", notch = FALSE) +
+  theme_classic() +
+  #coord_flip() +
+  scale_fill_npg(palette = c("nrc"), alpha=1) +
+  labs(x = "T cell phenotype") +
+  theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+  #stat_compare_means(paired = NULL)
+```
+
+```{r}
+# Raw stacking change of unnormalized data (Gini high group)
+ggplot(phenoClin_gini3.melt[phenoClin_gini3.melt$GiniIndex >= 0.25431,], aes(x = GiniIndex, y = value,fill=variable)) +
+    geom_area(position = "stack") +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=0.8) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.8) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Smoothed stacking change of unnormalized data (Gini high group)
+ggplot(phenoClin_gini3.melt[phenoClin_gini3.melt$GiniIndex >= 0.25431,], aes(x = GiniIndex, y = value)) +
+    stat_smooth(aes(color=variable,fill=variable), method = "loess", geom="area", position = "stack",span = 0.3) +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=1) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.7) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Raw fraction change of unnormalized data (Gini high group)
+ggplot(phenoClin_gini3.melt[phenoClin_gini3.melt$GiniIndex >= 0.25431,], aes(x = GiniIndex, y = value,fill=variable)) +
+    geom_area(position = "fill") +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=0.8) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.8) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Smoothed fraction change of unnormalized data (Gini high group)
+ggplot(phenoClin_gini3.melt[phenoClin_gini3.melt$GiniIndex >= 0.25431,], aes(x = GiniIndex, y = value)) +
+    stat_smooth(aes(color=variable,fill=variable), method = "loess", geom="area", position = "fill",span = 0.3) +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=1) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.7) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Raw stacking value (Gini high group)
+ggplot(fig11c.cut_gini.melt2[fig11c.cut_gini.melt2$GiniIndex >= 0.25431,], aes(x = GiniIndex, y = value,fill=variable)) +
+  geom_area() +
+  theme_classic() +
+  #coord_flip() +
+  scale_color_npg(palette = c("nrc"), alpha=1) +
+  scale_fill_npg(palette = c("nrc"), alpha=1) +
+  labs(x = "Gini coefficient") +
+  theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Raw fraction value (Gini high group)
+ggplot(fig11c.cut_gini.melt2[fig11c.cut_gini.melt2$GiniIndex >= 0.25431,], aes(x = GiniIndex, y = value,fill=variable)) +
+    geom_area(position = "fill") +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=0.8) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.8) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Smoothed stacking change (Gini high group)
+ggplot(fig11c.cut_gini.melt2[fig11c.cut_gini.melt2$GiniIndex >= 0.25431,], aes(x = GiniIndex, y = value)) +
+    stat_smooth(aes(color=variable,fill=variable), method = "loess", geom="area", position = "stack",span = 0.5) +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=1) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.7) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+# Smoothed fraction change (Gini high group)
+ggplot(fig11c.cut_gini.melt2[fig11c.cut_gini.melt2$GiniIndex >= 0.25431,], aes(x = GiniIndex, y = value)) +
+    stat_smooth(aes(color=variable,fill=variable), method = "loess", geom="area", position = "fill",span = 0.5) +
+    theme_classic() +
+    #coord_flip() +
+    scale_color_npg(palette = c("nrc"), alpha=1) +
+    scale_fill_npg(palette = c("nrc"), alpha=0.7) +
+    labs(x = "Gini coefficient") +
+    theme(legend.position = "top",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20))
+
+
+```
+
+
+# Fig12
+```{r}
+PhenoAll <- read_excel("~/Project/BOMI2/bomi2_phenotyped_densities_sep.xlsx", sheet = "All")
+PhenoAllNoCK <- read_excel("~/Project/BOMI2/bomi2_phenotyped_densities_sep.xlsx", sheet = "noCK")
+PhenoTIL <- read_excel("~/Project/BOMI2/bomi2_phenotyped_densities_sep.xlsx", sheet = "TIL")
+PhenoNK <- read_excel("~/Project/BOMI2/bomi2_phenotyped_densities_sep.xlsx", sheet = "NK")
+PhenoAPC <- read_excel("~/Project/BOMI2/bomi2_phenotyped_densities_sep.xlsx", sheet = "APC")
+
+PhenoAll <- as.data.frame(PhenoAll)
+PhenoAllNoCK <- as.data.frame(PhenoAllNoCK)
+PhenoTIL <- as.data.frame(PhenoTIL)
+PhenoNK <- as.data.frame(PhenoNK)
+PhenoAPC <- as.data.frame(PhenoAPC)
+
+PhenoAll$Location <- factor(PhenoAll$Location, levels = c("Tumor", "Stroma", "SAndT"))
+PhenoAllNoCK$Location <- factor(PhenoAllNoCK$Location, levels = c("Tumor", "Stroma", "SAndT"))
+PhenoTIL$Location <- factor(PhenoTIL$Location, levels = c("Tumor", "Stroma", "SAndT"))
+PhenoNK$Location <- factor(PhenoNK$Location, levels = c("Tumor", "Stroma", "SAndT"))
+PhenoAPC$Location <- factor(PhenoAPC$Location, levels = c("Tumor", "Stroma", "SAndT"))
+
+PhenoAll$PhenoType <- factor(PhenoAll$PhenoType, levels = c("CD4_Eff","CD4_Treg","CD8_Eff","CD8_Treg","B_cells","NK_cells","NKT_cells","M1","M2","CD163","iDC","mDC","pDC","PanCKsingle_TIL", "PanCKsingle_NK","PanCKsingle_APC"))
+PhenoAllNoCK$PhenoType <- factor(PhenoAllNoCK$PhenoType, levels = c("CD4_Eff","CD4_Treg","CD8_Eff","CD8_Treg","B_cells","NK_cells","NKT_cells","M1","M2","CD163","iDC","mDC","pDC"))
+PhenoTIL$PhenoType <- factor(PhenoTIL$PhenoType, levels = c("CD4_Eff","CD4_Treg","CD8_Eff","CD8_Treg","B_cells","PanCKsingle_TIL"))
+PhenoNK$PhenoType <- factor(PhenoNK$PhenoType, levels = c("NK_cells","NKT_cells","M1","M2","CD163","PanCKsingle_NK"))
+PhenoAPC$PhenoType <- factor(PhenoAPC$PhenoType, levels = c("iDC","mDC","pDC","PanCKsingle_APC"))
+
+```
+
+```{r}
+fig12a <- ggplot(PhenoAllNoCK, aes(x = PhenoType, y = value, fill=giniGroup)) +
+    geom_boxplot(outlier.shape = 16, outlier.size = 2, ) +
+    theme_classic() +
+    # coord_flip() +
+    # scale_fill_npg() +
+    theme(legend.position = "none") +
+    stat_compare_means(paired = NULL, size=2) +
+    facet_wrap(~Location, nrow = 3, strip.position = "left", scale="free") +
+    scale_y_continuous(expand = c(0,0))
+
+
+fig12b <- ggplot(PhenoAllNoCK, aes(x = Location, y = value, fill=giniGroup)) +
+    geom_boxplot(outlier.shape = 16, outlier.size = 2, ) +
+    theme_classic() +
+    # coord_flip() +
+    # scale_fill_npg() +
+    theme(legend.position = "none") +
+    stat_compare_means(paired = NULL, size=1.5) +
+    facet_wrap(~PhenoType, nrow = 3, strip.position = "left", scale="free")
+
+```
+
+
+
+# Fig13 Distance data
+```{r}
+DistTIL <- read_excel("~/Project/TCR/Distance/BOMI2_dist.xlsx", sheet = "TIL_Gini")
+DistTIL <- as.data.frame(DistTIL)
+TIL_corrT <- rcorr(as.matrix(DistTIL[,c(5,27:56)]), type = "spearman")
+write.csv(TIL_corrT$r, file = "~/Project/TCR/Distance/TIL_corr.csv")
+write.csv(TIL_corrT$P, file = "~/Project/TCR/Distance/TIL_corr_Pvalue.csv")
+
+# melt
+TIL_corr_melt <- read_excel("~/Project/TCR/Distance/BOMI2_dist.xlsx", sheet = "TIL_Corr")
+TIL_corr_melt[,"P_adjust"] <- p.adjust(TIL_corr_melt$`P-Value`,method = "BH")
+TIL_corr_melt$label <- NULL
+TIL_corr_melt.1d[TIL_corr_melt.1d$var1]
+TIL_corr_melt[TIL_corr_melt$P_adjust <= 0.001,"label"] <- "***"
+TIL_corr_melt[TIL_corr_melt$P_adjust > 0.001 & TIL_corr_melt$P_adjust <= 0.01,"label"] <- "**"
+TIL_corr_melt[TIL_corr_melt$P_adjust > 0.01 & TIL_corr_melt$P_adjust <= 0.05,"label"] <- "*"
+TIL_corr_melt$Correlation
+```
+
+```{r}
+ggplot(TIL_corr_melt, aes(var1, var2, fill = Correlation)) +
+    geom_point(shape=21, colour = "black", size = 12)+
+    theme_classic()+
+    scale_fill_gradientn(colours = rev(brewer.pal(5, "Spectral")))+
+    labs(title = "Correlation", x = "Outset", y = "End") +
+    theme(axis.text = element_text(size = 10, colour = "black"), axis.title = element_text(size = 10),plot.title = element_text(size=15))+
+    geom_text(aes(label = label), size = 5, colour = "black")
+```
+
+## 1D plot
+```{r}
+TIL_corr_melt.1d <- read_excel("~/Project/TCR_Summary/Writing/SumSup.xlsx", sheet = "TIL_Corr_1D")
+TIL_corr_melt.1d <- as.data.frame(TIL_corr_melt.1d)
+# -0.122419365	0.138273993
+#TIL_corr_melt.1d[TIL_corr_melt.1d$var1 == "CD4_Treg" & TIL_corr_melt.1d$var2 == "PanCKsingle", c("Correlation","P-Value")] <- c(-0.122419365, 0.138273993)
+TIL_corr_melt.1d[,"P_adjust"] <- p.adjust(TIL_corr_melt.1d$`P-Value`,method = "BH")
+TIL_corr_melt.1d[TIL_corr_melt.1d$P_adjust <= 0.001,"label"] <- "***"
+TIL_corr_melt.1d[TIL_corr_melt.1d$P_adjust > 0.001 & TIL_corr_melt.1d$P_adjust <= 0.01,"label"] <- "**"
+TIL_corr_melt.1d[TIL_corr_melt.1d$P_adjust > 0.01 & TIL_corr_melt.1d$P_adjust <= 0.05,"label"] <- "*"
+```
+
+```{r}
+ggplot(TIL_corr_melt.1d, aes(var2, var1, fill = Correlation)) +
+    geom_point(shape=21, colour = "black", size = 12)+
+    theme_classic()+
+    scale_fill_gradientn(colours = rev(brewer.pal(5, "Spectral")))+
+    labs(title = "Correlation", x = "Outset", y = "End") +
+    theme(axis.text = element_text(size = 10, colour = "black"), axis.title = element_text(size = 10),plot.title = element_text(size=15))+
+    geom_text(aes(label = label), size = 5, colour = "black")
+```
+
+
+
+
+# Fig14 immunetherapy treated cohort
+```{r}
+library(readxl)
+itCohort <- read_excel("~/Project/TCR/ImmuneCohort/GSE126044_gini_ab.xlsx", 
+    sheet = "Sheet3")
+View(itCohort)
+
+itCohort <- as.data.frame(itCohort)
+```
+
+```{r}
+f14a <- ggplot(itCohort, aes(x = factor(Responsiveness, level=c('Responder','Non-responder' )), y = Gini, fill=Responsiveness)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black", notch = FALSE) +
+  theme_classic() +
+  #coord_flip() +
+  scale_fill_manual(values = c("#00BFC4", "#F8766D")) +
+  labs(title = "Responsiveness", x = "Responsiveness", y = "Gini coefficient") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+
+f14a
+```
+
+```{r}
+colnames(itCohort)[colnames(itCohort) == "Progression free survival \r\n(month)"] = "Progression free survival (month)"
+# Use the cut off from our dataset
+itCohort[itCohort$Gini >= 0.19, "giniGroup"] <- "High"
+itCohort[itCohort$Gini < 0.19, "giniGroup"] <- "Low"
+itCohort$giniGroup = factor(itCohort$giniGroup, levels = c("High", "Low"))
+
+# construct the object
+fig14b_test <- survfit(Surv(`Progression free survival (month)`, Status) ~ giniGroup, data = itCohort)
+
+print(fig14b_test)
+
+summary(fig14b_test)$table
+```
+
+```{r}
+fig14b <- ggsurvplot(fig14b_test,
+                        pval = TRUE,
+                        palette = c("#e64b35", "#4dbbd5"),
+                        break.time.by = 1,
+                        ggtheme = theme_classic(),
+                        legend.labs = c("High", "Low"),
+                        risk.table = "abs_pct",
+                        risk.table.y.text = FALSE,
+                        xlab = "Time (months)",
+                        title = "giniSurv",
+                        xlim = c(0,14.5),
+                        axes.offset = FALSE,
+                        risk.table.fontsize = 2.5,
+                        legend = c(0.95,0.97),
+                        risk.table.title = "Number at risk by time: n (%)",
+                        font.main = c(),
+                     break.x.by=3
+                     )
+
+
+fig14b
+```
+
+```{r}
+surv_median(fig14b_test)
+```
+
+
+# Figure 15 Lymph nodes
+```{r}
+library(stringr)
+GiniClin_tumor$lymph <- str_sub(GiniClin_tumor$`pTNM edt 8 (PMI)`, -2,-1)
+
+GiniClin_tumor[GiniClin_tumor$lymph == "N0", "Lymph_node"] = "N0"
+GiniClin_tumor[GiniClin_tumor$lymph == "N1"| GiniClin_tumor$lymph == "N2", "Lymph_node"] = "N1/N2"
+
+ggplot(GiniClin_tumor, aes(x = Lymph_node, y = GiniIndex, fill=Lymph_node)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, colour = "black", notch = FALSE) +
+  theme_classic() +
+  #coord_flip() +
+  #scale_color_npg() +
+  labs(title = "lymph", x = "lymph") +
+  theme(legend.position = "none",axis.text = element_text(size = 15, colour = "black"), axis.title = element_text(size = 15),plot.title = element_text(size=20)) +
+  stat_compare_means(paired = NULL)
+```
+
+# Beta clone distance
+```{r}
+GiniDist <- read.table("/Users/huiyu818/Project/TCR/TCRdist//cloneSummary/beta_tumor_dist_rank.txt")
+GiniDist <- as.data.frame(GiniDist)
+```
+
+```{r}
+pheatmap(GiniDist,
+         cluster_rows = F, cluster_cols = F,
+         #cutree_cols = 3,
+         color = colorRampPalette(brewer.pal(n = 7, name = "RdYlBu"))(100),
+         fontsize = 5,
+         show_colnames = T
+)
+```
+
+```{r}
+# Load the annotation
+GiniDist_anno <-  read_excel("~/Project/TCR/TCRdist/cloneSummary/beta_tumor.xlsx", sheet = "Distance_DF_2")
+GiniDist_anno <- as.data.frame(GiniDist_anno)
+rownames(GiniDist_anno) <- GiniDist_anno$clone_id_new
+```
+
+```{r}
+GiniDist_anno_color = list(
+#  "GiniIndex" = colorRampPalette(brewer.pal(n = 9, name = "Reds"))(100),
+  "Anti_virus" = c(Y = "#D45F51", N = "#B7D2E8"))
+```
+
+```{r}
+pheatmap(GiniDist,
+         cluster_rows = F, cluster_cols = F,
+         color = colorRampPalette(brewer.pal(n = 7, name = "RdYlBu"))(100),
+         annotation_col = GiniDist_anno["Anti_virus"],
+         annotation_colors = GiniDist_anno_color,
+         fontsize = 5,
+         show_colnames = T
+         )
+```
+
+```{r}
+pheatmap(GiniDist,
+         clustering_method = "ward.D2",
+         clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+         color = colorRampPalette(brewer.pal(n = 7, name = "RdYlBu"))(100),
+         annotation_col = GiniDist_anno["Anti_virus"],
+         annotation_colors = GiniDist_anno_color,
+         fontsize = 5,
+         show_colnames = T
+         )
+```
+
+
+```{r}
+pheatmap(t(ihcHeatT_tumor_norm2), clustering_method = "ward.D2",
+                  clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean",
+                  cutree_cols = 3,
+                  #color = colorRampPalette(brewer.pal(n = 7, name = "YlGnBu"))(100),
+                  annotation_col = ihcAnno,
+                  annotation_colors = ihcAnno_color,
+                  fontsize = 5,
+                  show_colnames = F
+                  )
+```
+
+
+# Cancer testis antigens
+```{r}
+CTA_list <- read_excel("~/Project/TCR_Summary/Writing/SumSup.xlsx", sheet = "CTA")
+
+CTA_list <- as.data.frame(CTA_list)
+```
+
+```{r}
+Bomi2RC_tumor_norm <- read.csv("~/Project/Clinical/BOMI2/BOMI2_RNAseq_FPKM/RNASeq_counts_tumor_norm.txt", sep="\t")
+```
+
+## CTA list 1 (all from database)
+```{r}
+library(data.table)
+GiniClin_CTA_ori <- as.data.frame(t(Bomi2RC_tumor_norm[CTA_list$Ensgid_1,]))
+
+GiniClin_CTA_ori <- merge(GiniClin_tumor, GiniClin_CTA_ori, by.x = "ID" ,by.y = "row.names")
+setnames(GiniClin_CTA_ori, old =  CTA_list[["Ensgid_1"]], new = CTA_list[["Gene_1"]])
+```
+
+```{r}
+GiniClin_CTA_ori[1,37]
+```
+
+```{r}
+CTA_corr <- rcorr(as.matrix(GiniClin_CTA_ori[,c(5,37:132)]), type = "spearman")
+
+write.csv(CTA_corr$r, file = "~/Project/TCR/CTA/ctaCor.csv")
+write.csv(CTA_corr$P, file = "~/Project/TCR/CTA/ctaPvalue.csv")
+```
+
+```{r}
+CTA_corrT <- read_excel("~/Project/TCR/CTA/CTA.xlsx", sheet = "Sheet3")
+
+CTA_corrT <- as.data.frame(CTA_corrT)
+
+CTA_corrT <- rename(CTA_corrT, c("GeneSymbol"="...1"))
+CTA_corrT[,"padj"] <- p.adjust(CTA_corrT$`P-value`,method = "BH")
+
+write.csv(CTA_corrT, file = "~/Project/TCR/CTA/ctaPadj.csv")
+```
+
+```{r}
+CTA_corrT[CTA_corrT$padj < 0.05,]
+```
+
+## CTA list 2 (noval list)
+```{r}
+GiniClin_CTA_ori_2 <- as.data.frame(t(Bomi2RC_tumor_norm[CTA_list[!is.na(CTA_list$Ensgid_2),"Ensgid_2"],]))
+
+GiniClin_CTA_ori_2 <- merge(GiniClin_tumor, GiniClin_CTA_ori_2, by.x = "ID" ,by.y = "row.names")
+setnames(GiniClin_CTA_ori_2, old =  CTA_list[!is.na(CTA_list$Ensgid_2),"Ensgid_2"], new = CTA_list[!is.na(CTA_list$Ensgid_2),"Gene_2"])
+```
+
+```{r}
+GiniClin_CTA_ori_2[3,37]
+```
+
+```{r}
+CTA_corr_2 <- rcorr(as.matrix(GiniClin_CTA_ori_2[,c(5,37:126)]), type = "spearman")
+
+write.csv(CTA_corr_2$r, file = "~/Project/TCR/CTA/ctaCor_list2.csv")
+write.csv(CTA_corr_2$P, file = "~/Project/TCR/CTA/ctaPvalue_list2.csv")
+```
+
+```{r}
+CTA_corrT_2 <- read_excel("~/Project/TCR/CTA/CTA.xlsx", sheet = "GeneList2")
+CTA_corrT_2 <- as.data.frame(CTA_corrT_2)
+
+CTA_corrT_2[,"padj"] <- p.adjust(CTA_corrT_2$Pvalue,method = "BH")
+```
+
+
+## Vocanol plot
+```{r}
+ggplot(data = diffGene, aes(x = log2FoldChange, y = -log10(padj), color = sign)) + 
+  geom_point(size = 1) +  #Create scatter plot
+  scale_color_manual(values = c('red', 'gray', 'green'), limits = c('UP', 'none', 'DOWN')) +  #Set the color
+  labs(x = 'log2 Fold Change', y = '-log10 adjust p-value', title = 'High clonality vs Low clonality', color = '') +  #Set the labels
+  theme(plot.title = element_text(hjust = 0.5, size = 14), panel.grid = element_blank(), #Change the them and grid lines
+  panel.background = element_rect(color = 'black', fill = 'transparent'), 
+  legend.key = element_rect(fill = 'transparent')) +
+  geom_vline(xintercept = c(-1, 1), lty = 3, color = 'black') +  #Add threshold line
+  geom_hline(yintercept = 2, lty = 3, color = 'black') +
+  xlim(-12, 12) + ylim(0, 35) + #Set the curve boundary
+  geom_text_repel(
+    data = diffGene,
+    aes(label = label),
+    size = 3, segment.color = "blue", show.legned = FALSE,
+    point.padding = unit(0.8, "lines")
+  )
+```
+
+
+# ISS plot
+```{r}
+ISS_dot_data <- read_excel("~/Project/TCR/ISSimmunopanels/Analysis/DotPlot sample.xlsx")
+View(ISS_dot_data)
+
+ISS_dot_data <- as.data.frame(ISS_dot_data)
+```
+
+```{r}
+ggplot(ISS_dot_data, aes(Clone, EPCAM_CDH1_anno)) +
+  geom_point(aes(size=Clone_fraction, color = Clone_mean))+
+  facet_wrap(~ Sample, scales = "free_x", drop = TRUE) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(),  # Remove major grid lines
+        panel.grid.minor = element_blank()) + # Remove minor grid lines
+  scale_size(range = c(1, 10)) +
+  scale_color_gradientn(colors = rev(brewer.pal(5, "Spectral")))+
+  labs(title = "Bubble plot grouped by sample", x = "Clone", y = "EPCAM_CDH1 annotation") +
+  theme(axis.text.x = element_text(size = 10, colour = "black", angle = 45), axis.title = element_text(size = 10),plot.title = element_text(size=15))
+  #geom_text(aes(label = label), size = 5, colour = "black")
+```
+
+```{r}
+library(dplyr)
+
+ISS_dot_data <- ISS_dot_data %>%
+  group_by(Sample) %>%
+  mutate(Normalized_Clone_fraction = scale(Clone_fraction),  # Normalizing clone fraction
+         Normalized_Clone_mean = scale(Clone_mean)) %>%  # Normalizing clone mean
+  ungroup()
+```
+
+
+```{r}
+ISS_dot_data_L766 <- ISS_dot_data[ISS_dot_data$Sample == "L766T",]
+```
+
+```{r}
+ggplot(ISS_dot_data_L766, aes(Clone, EPCAM_CDH1_anno)) +
+  geom_point(aes(size=Clone_fraction, color = Clone_mean))+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(),  # Remove major grid lines
+        panel.grid.minor = element_blank()) + # Remove minor grid lines
+  scale_color_gradientn(colors = rev(brewer.pal(5, "Spectral")))+
+  labs(title = "Bubble plot grouped by sample", x = "Clone", y = "EPCAM_CDH1 annotation") +
+  theme(axis.text.x = element_text(size = 10, colour = "black", angle = 45), axis.title = element_text(size = 10),plot.title = element_text(size=15))
+```
+
+```{r}
+ISS_dot_data_L596 <- ISS_dot_data[ISS_dot_data$Sample == "L596T",]
+```
+
+```{r}
+ggplot(ISS_dot_data_L596, aes(Clone, EPCAM_CDH1_anno)) +
+  geom_point(aes(size=Clone_fraction, color = Clone_mean))+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(),  # Remove major grid lines
+        panel.grid.minor = element_blank()) + # Remove minor grid lines
+  scale_color_gradientn(colors = rev(brewer.pal(5, "Spectral")))+
+  scale_size(range = c(1, 10)) +
+  labs(title = "Bubble plot grouped by sample", x = "Clone", y = "EPCAM_CDH1 annotation") +
+  theme(axis.text.x = element_text(size = 10, colour = "black", angle = 45), axis.title = element_text(size = 10),plot.title = element_text(size=15))
+```
+
+
+
+
+
+
+
+
+
+
