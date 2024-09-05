@@ -1,0 +1,21 @@
+java -Xmx56g -Xms52g -jar D:\Hui\Software\mixcr-3.0.13\mixcr.jar align -s hs -p rna-seq -OallowPartialAlignments=true D:\Hui\TCR\fastq\P1121_104_1.fastq.gz D:\Hui\TCR\fastq\P1121_104_2.fastq.gz D:\Hui\TCR\Align\P1121_104.vdjca
+
+java -Xmx56g -Xms52g -jar D:\Hui\Software\mixcr-3.0.13\mixcr.jar assemblePartial D:\Hui\TCR\Align\P1121_101.vdjca D:\Hui\TCR\AlignAna\P1121_101\P1121_101assemP1.vdjca
+
+java -Xmx56g -Xms52g -jar D:\Hui\Software\mixcr-3.0.13\mixcr.jar assemblePartial D:\Hui\TCR\AlignAna\P1121_101\P1121_101assemP1.vdjca D:\Hui\TCR\AlignAna\P1121_101\P1121_101assemP2.vdjca
+
+java -Xmx56g -Xms52g -jar D:\Hui\Software\mixcr-3.0.13\mixcr.jar extend D:\Hui\TCR\AlignAna\P1121_101\P1121_101assemP2.vdjca D:\Hui\TCR\AlignAna\P1121_101\P1121_101assemP2_extended.vdjca
+
+java -Xmx56g -Xms52g -jar D:\Hui\Software\mixcr-3.0.13\mixcr.jar assemble D:\Hui\TCR\AlignAna\P1121_101\P1121_101assemP2_extended.vdjca D:\Hui\TCR\AlignAna\P1121_101\P1121_101_clones.clns
+
+java -Xmx56g -Xms52g -jar D:\Hui\Software\mixcr-3.0.13\mixcr.jar exportClones -c TCR D:\Hui\TCR\AlignAna\P1121_101\P1121_101_clones.clns D:\Hui\TCR\CloneRaw\P1121_101_clones_TCR_raw.txt
+
+java -Xmx56g -Xms52g -jar D:\Hui\Software\mixcr-3.0.13\mixcr.jar exportClones -c TCR D:\Hui\TCR\AlignAna\P1121_101\P1121_101_clones.clns D:\Hui\TCR\Clone\P1121_101_clones_TCR.txt
+
+java -Xmx56g -Xms52g -jar D:\Hui\Software\mixcr-3.0.13\mixcr.jar exportClones -c TRA D:\Hui\TCR\AlignAna\P1121_101\P1121_101_clones.clns D:\Hui\TCR\ABchainSeq_raw\P1121_101_tra.txt
+
+java -Xmx56g -Xms52g -jar D:\Hui\Software\mixcr-3.0.13\mixcr.jar exportClones -cloneId -count -fraction -vGene -dGene -jGene -cGene -vAlignment -jAlignment -targets -nFeature CDR3 -c TRA D:\Hui\TCR\AlignAna\P1121_101\P1121_101_clones.clns D:\Hui\TCR\ABchainSep\P1121_101_tra.txt
+
+java -Xmx56g -Xms52g -jar D:\Hui\Software\mixcr-3.0.13\mixcr.jar -c TRB D:\Hui\TCR\AlignAna\P1121_101\P1121_101_clones.clns D:\Hui\TCR\ABchainSep_raw\P1121_101_trb.txt
+
+java -Xmx56g -Xms52g -jar D:\Hui\Software\mixcr-3.0.13\mixcr.jar exportClones -cloneId -count -fraction -vGene -dGene -jGene -cGene -vAlignment -jAlignment -targets -nFeature CDR3 -c TRB D:\Hui\TCR\AlignAna\P1121_101\P1121_101_clones.clns D:\Hui\TCR\ABchainSep\P1121_101_trb.txt
