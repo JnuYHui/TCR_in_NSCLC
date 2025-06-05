@@ -1,1 +1,8 @@
-
+mixcr align -s hs -p rna-seq -OallowPartialAlignments=true Case1_forward_sequence.fastq Case1_reverse_sequence.fastq Case1_align_output.vdjca
+mixcr assemblePartial Case1_align_output.vdjca Case1_assemble1.vdjca
+mixcr assemblePartial Case1_assemble1.vdjca Case1_assemble2.vdjca
+Case1_
+mixcr extend Case1_assemble2.vdjca Case1_extend.vdjca
+mixcr assemble Case1_extend.vdjca Case1_clones.clns
+mixcr exportClones -cloneId -count -fraction -vGene -dGene -jGene -cGene -vAlignment -jAlignment -targets -nFeature CDR3 -c TRA Case1_clones.clns Case1_tra.txt
+mixcr exportClones -cloneId -count -fraction -vGene -dGene -jGene -cGene -vAlignment -jAlignment -targets -nFeature CDR3 -c TRA Case1_clones.clns Case1_trb.txt
